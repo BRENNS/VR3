@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expérience VR Spatiale</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        #vrButton {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            background: #ff6b35;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        #vrButton:hover {
+            background: #e55a2b;
+            transform: translateX(-50%) translateY(-2px);
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<div id="info">
+    <h3>🚀 Expérience VR Spatiale</h3>
+    <p>• Utilisez votre casque VR pour une immersion totale</p>
+    <p>• Regardez les objets pour les faire briller</p>
+    <p>• Déplacez-vous librement dans l'espace</p>
+</div>
+
+<button id="vrButton">Entrer en VR</button>
+
+<script>
+    // Configuration de base
+    let scene, camera, renderer, vrButton;
+    let cubes = [];
+    let spheres = [];
+    let particles = [];
+    let raycaster = new THREE.Raycaster();
+    let clock = new THREE.Clock();
+
+    // Matériaux et couleurs
+    const colors = [0xff6b35, 0x4ecdc4, 0x45b7d1, 0x96ceb4, 0xfeca57, 0xff9ff3, 0x54a0ff];
+
+    init();
+    animate();
+
+    function init() {
+        // Scène
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x000010, 50, 200);
+
+        // Caméra
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.6, 5);
+
+        // Renderer avec support VR
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.xr.enabled = true;
+        renderer.setClearColor(0x000010);
+        document.body.appendChild(renderer.domElement);
+
+        // Configuration VR
+        setupVR();
+
+        // Éclairage
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 10, 5);
+        scene.add(directionalLight);
+
+        // Lumières colorées
+        const light1 = new THREE.PointLight(0xff6b35, 1, 30);
+        light1.position.set(-10, 5, -10);
+        scene.add(light1);
+
+        const light2 = new THREE.PointLight(0x4ecdc4, 1, 30);
+        light2.position.set(10, 5, 10);
+        scene.add(light2);
+
+        // Création du monde
+        createFloatingCubes();
+        createFloatingSpheres();
+        createParticleSystem();
+        createEnvironment();
+
+        // Événements
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    function setupVR() {
+        // Bouton VR
+        vrButton = document.getElementById('vrButton');
+
+        if ('xr' in navigator) {
+            navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                if (supported) {
+                    vrButton.addEventListener('click', onVRButtonClick);
+                } else {
+                    vrButton.textContent = 'VR non supportée';
+                    vrButton.disabled = true;
+                }
+            });
+        } else {
+            vrButton.textContent = 'WebXR non disponible';
+            vrButton.disabled = true;
+        }
+    }
+
+    function onVRButtonClick() {
+        if (renderer.xr.isPresenting) {
+            renderer.xr.getSession().end();
+        } else {
+            navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
+                .then((session) => {
+                    renderer.xr.setSession(session);
+                    vrButton.textContent = 'Quitter VR';
+                    document.getElementById('info').style.display = 'none';
+                })
+                .catch((err) => {
+                    console.error('Erreur VR:', err);
+                    alert('Impossible de démarrer la VR. Assurez-vous que votre casque est connecté.');
+                });
+        }
+    }
+
+    function createFloatingCubes() {
+        for (let i = 0; i < 15; i++) {
+            const geometry = new THREE.BoxGeometry(
+                Math.random() * 2 + 0.5,
+                Math.random() * 2 + 0.5,
+                Math.random() * 2 + 0.5
+            );
+
+            const material = new THREE.MeshPhongMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                transparent: true,
+                opacity: 0.8
+            });
+
+            const cube = new THREE.Mesh(geometry, material);
+
+            cube.position.set(
+                (Math.random() - 0.5) * 30,
+                Math.random() * 10 + 2,
+                (Math.random() - 0.5) * 30
+            );
+
+            cube.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+            );
+
+            cube.userData = {
+                originalColor: material.color.getHex(),
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.02,
+                    y: (Math.random() - 0.5) * 0.02,
+                    z: (Math.random() - 0.5) * 0.02
+                },
+                floatSpeed: Math.random() * 0.02 + 0.01,
+                floatOffset: Math.random() * Math.PI * 2
+            };
+
+            cubes.push(cube);
+            scene.add(cube);
+        }
+    }
+
+    function createFloatingSpheres() {
+        for (let i = 0; i < 12; i++) {
+            const geometry = new THREE.SphereGeometry(Math.random() * 1.5 + 0.3, 16, 16);
+
+            const material = new THREE.MeshPhongMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                transparent: true,
+                opacity: 0.7,
+                emissive: colors[Math.floor(Math.random() * colors.length)],
+                emissiveIntensity: 0.1
+            });
+
+            const sphere = new THREE.Mesh(geometry, material);
+
+            sphere.position.set(
+                (Math.random() - 0.5) * 25,
+                Math.random() * 8 + 3,
+                (Math.random() - 0.5) * 25
+            );
+
+            sphere.userData = {
+                originalColor: material.color.getHex(),
+                originalEmissive: material.emissive.getHex(),
+                floatSpeed: Math.random() * 0.03 + 0.01,
+                floatOffset: Math.random() * Math.PI * 2,
+                pulseSpeed: Math.random() * 0.05 + 0.02
+            };
+
+            spheres.push(sphere);
+            scene.add(sphere);
+        }
+    }
+
+    function createParticleSystem() {
+        const particleCount = 200;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount * 3; i += 3) {
+            positions[i] = (Math.random() - 0.5) * 100;
+            positions[i + 1] = Math.random() * 50;
+            positions[i + 2] = (Math.random() - 0.5) * 100;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.PointsMaterial({
+            color: 0x4ecdc4,
+            size: 0.5,
+            transparent: true,
+            opacity: 0.6
+        });
+
+        const particleSystem = new THREE.Points(geometry, material);
+        scene.add(particleSystem);
+        particles.push(particleSystem);
+    }
+
+    function createEnvironment() {
+        // Sol avec grille
+        const gridGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
+        const gridMaterial = new THREE.MeshBasicMaterial({
+            color: 0x333333,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+        });
+
+        const grid = new THREE.Mesh(gridGeometry, gridMaterial);
+        grid.rotation.x = -Math.PI / 2;
+        grid.position.y = 0;
+        scene.add(grid);
+
+        // Ciel étoilé
+        const starsGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(1000 * 3);
+
+        for (let i = 0; i < 1000 * 3; i += 3) {
+            starPositions[i] = (Math.random() - 0.5) * 200;
+            starPositions[i + 1] = Math.random() * 100 + 20;
+            starPositions[i + 2] = (Math.random() - 0.5) * 200;
+        }
+
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+
+        const starsMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 1,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        const stars = new THREE.Points(starsGeometry, starsMaterial);
+        scene.add(stars);
+    }
+
+    function animate() {
+        renderer.setAnimationLoop(render);
+    }
+
+    function render() {
+        const time = clock.getElapsedTime();
+
+        // Animation des cubes
+        cubes.forEach((cube, index) => {
+            const userData = cube.userData;
+
+            // Rotation
+            cube.rotation.x += userData.rotationSpeed.x;
+            cube.rotation.y += userData.rotationSpeed.y;
+            cube.rotation.z += userData.rotationSpeed.z;
+
+            // Mouvement flottant
+            cube.position.y += Math.sin(time * userData.floatSpeed + userData.floatOffset) * 0.01;
+
+            // Vérification du regard
+            checkGaze(cube, 0xff0000);
+        });
+
+        // Animation des sphères
+        spheres.forEach((sphere, index) => {
+            const userData = sphere.userData;
+
+            // Mouvement flottant
+            sphere.position.y += Math.sin(time * userData.floatSpeed + userData.floatOffset) * 0.015;
+            sphere.position.x += Math.cos(time * userData.floatSpeed * 0.5) * 0.005;
+
+            // Pulsation
+            const scale = 1 + Math.sin(time * userData.pulseSpeed) * 0.1;
+            sphere.scale.setScalar(scale);
+
+            // Vérification du regard
+            checkGaze(sphere, 0x00ff00);
+        });
+
+        // Animation des particules
+        particles.forEach(particleSystem => {
+            particleSystem.rotation.y += 0.001;
+            const positions = particleSystem.geometry.attributes.position.array;
+
+            for (let i = 1; i < positions.length; i += 3) {
+                positions[i] += Math.sin(time + positions[i] * 0.01) * 0.01;
+            }
+
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+        });
+
+        renderer.render(scene, camera);
+    }
+
+    function checkGaze(object, highlightColor) {
+        // Calculer la direction du regard
+        const cameraDirection = new THREE.Vector3();
+        camera.getWorldDirection(cameraDirection);
+
+        const cameraPosition = new THREE.Vector3();
+        camera.getWorldPosition(cameraPosition);
+
+        raycaster.set(cameraPosition, cameraDirection);
+
+        // Vérifier l'intersection
+        const intersects = raycaster.intersectObject(object);
+
+        if (intersects.length > 0) {
+            // Objet regardé - changer la couleur
+            object.material.color.setHex(highlightColor);
+            object.material.emissiveIntensity = 0.3;
+
+            // Effet de taille
+            const targetScale = 1.2;
+            object.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+        } else {
+            // Restaurer la couleur originale
+            object.material.color.setHex(object.userData.originalColor);
+            object.material.emissiveIntensity = 0.1;
+
+            // Restaurer la taille
+            object.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+        }
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Gestion des sessions VR
+    renderer.xr.addEventListener('sessionstart', () => {
+        vrButton.textContent = 'Quitter VR';
+    });
+
+    renderer.xr.addEventListener('sessionend', () => {
+        vrButton.textContent = 'Entrer en VR';
+        document.getElementById('info').style.display = 'block';
+    });
+</script>
+</body>
+</html>
