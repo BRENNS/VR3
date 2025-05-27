@@ -2,464 +2,653 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gyroscope Corrigé - Vue 3D</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Expérience VR Mobile</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
             overflow: hidden;
-            height: 100vh;
-        }
-
-        #container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            perspective: 1000px;
-        }
-
-        #cube {
-            width: 200px;
-            height: 200px;
-            position: relative;
-            transform-style: preserve-3d;
-            transition: transform 0.1s ease-out;
-        }
-
-        .face {
-            position: absolute;
-            width: 200px;
-            height: 200px;
-            border: 2px solid #fff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            font-weight: bold;
-            color: white;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        }
-
-        .front { background: rgba(255, 0, 0, 0.8); transform: rotateY(0deg) translateZ(100px); }
-        .back { background: rgba(0, 255, 0, 0.8); transform: rotateY(180deg) translateZ(100px); }
-        .right { background: rgba(0, 0, 255, 0.8); transform: rotateY(90deg) translateZ(100px); }
-        .left { background: rgba(255, 255, 0, 0.8); transform: rotateY(-90deg) translateZ(100px); }
-        .top { background: rgba(255, 0, 255, 0.8); transform: rotateX(90deg) translateZ(100px); }
-        .bottom { background: rgba(0, 255, 255, 0.8); transform: rotateX(-90deg) translateZ(100px); }
-
-        #controls {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            z-index: 1000;
+            background: #000;
+            font-family: Arial, sans-serif;
+            touch-action: none;
         }
 
         #info {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.8);
+            position: absolute;
+            top: 10px;
+            left: 10px;
             color: white;
-            padding: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
             border-radius: 10px;
-            z-index: 1000;
-            font-family: monospace;
-        }
-
-        button {
-            background: #4CAF50;
-            border: none;
-            color: white;
-            padding: 10px 20px;
-            margin: 5px;
-            border-radius: 5px;
-            cursor: pointer;
             font-size: 16px;
-            transition: background 0.3s;
+            max-width: 300px;
         }
 
-        button:hover {
-            background: #45a049;
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
 
-        button:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
+        .control-btn {
+            padding: 15px 25px;
+            background: #ff6b35;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+            transition: all 0.3s ease;
+            min-width: 120px;
         }
 
-        .slider-container {
-            margin: 10px 0;
+        .control-btn:hover, .control-btn:active {
+            background: #e55a2b;
+            transform: translateY(-2px);
         }
 
-        .slider {
+        .control-btn.active {
+            background: #4ecdc4;
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
             width: 100%;
-            margin: 5px 0;
+            height: 100%;
         }
 
-        #status {
-            color: #4CAF50;
-            font-weight: bold;
+        .vr-mode canvas {
+            transform: none;
         }
 
-        .error {
-            color: #ff4444;
+        #orientation-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: white;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-size: 24px;
+            text-align: center;
         }
 
-        .warning {
-            color: #ffaa00;
+        #gyro-permission {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+            text-align: center;
+            padding: 20px;
+        }
+
+        @media (orientation: portrait) {
+            #orientation-warning {
+                display: flex;
+            }
+        }
+
+        @media (orientation: landscape) {
+            #orientation-warning {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
-<div id="container">
-    <div id="cube">
-        <div class="face front">AVANT</div>
-        <div class="face back">ARRIÈRE</div>
-        <div class="face right">DROITE</div>
-        <div class="face left">GAUCHE</div>
-        <div class="face top">HAUT</div>
-        <div class="face bottom">BAS</div>
-    </div>
+<div id="orientation-warning">
+    <div>📱</div>
+    <h2>Tournez votre téléphone</h2>
+    <p>Basculez en mode paysage pour la VR</p>
 </div>
 
-<div id="controls">
-    <h3>Contrôles Gyroscope</h3>
-    <button id="startBtn">Démarrer Gyroscope</button>
-    <button id="stopBtn" disabled>Arrêter</button>
-    <button id="calibrateBtn">Calibrer</button>
-    <button id="resetBtn">Reset Position</button>
-    <button id="fullscreenBtn">Plein Écran</button>
-
-    <div class="slider-container">
-        <label>Sensibilité X: <span id="sensXValue">1.0</span></label>
-        <input type="range" id="sensX" class="slider" min="0.1" max="3.0" step="0.1" value="1.0">
-    </div>
-
-    <div class="slider-container">
-        <label>Sensibilité Y: <span id="sensYValue">1.0</span></label>
-        <input type="range" id="sensY" class="slider" min="0.1" max="3.0" step="0.1" value="1.0">
-    </div>
-
-    <div class="slider-container">
-        <label>Sensibilité Z: <span id="sensZValue">1.0</span></label>
-        <input type="range" id="sensZ" class="slider" min="0.1" max="3.0" step="0.1" value="1.0">
-    </div>
-
-    <div>
-        <input type="checkbox" id="invertX"> <label for="invertX">Inverser X</label><br>
-        <input type="checkbox" id="invertY" checked> <label for="invertY">Inverser Y</label><br>
-        <input type="checkbox" id="invertZ"> <label for="invertZ">Inverser Z</label>
-    </div>
+<div id="gyro-permission">
+    <h2>🧭 Permission gyroscope</h2>
+    <p>Autorisez l'accès au gyroscope pour contrôler la caméra avec les mouvements de votre tête</p>
+    <button class="control-btn" onclick="requestGyroPermission()">Autoriser</button>
 </div>
 
 <div id="info">
-    <div id="status">Gyroscope non démarré</div>
-    <div>Rotation X: <span id="rotX">0°</span></div>
-    <div>Rotation Y: <span id="rotY">0°</span></div>
-    <div>Rotation Z: <span id="rotZ">0°</span></div>
-    <div>Gyro X: <span id="gyroX">0</span></div>
-    <div>Gyro Y: <span id="gyroY">0</span></div>
-    <div>Gyro Z: <span id="gyroZ">0</span></div>
+    <h3>🚀 VR Mobile - SHINECON G05 PRO</h3>
+    <p>• Placez votre iPhone dans le casque</p>
+    <p>• Activez le mode VR pour l'écran divisé</p>
+    <p>• Bougez la tête pour regarder autour</p>
+    <p>• Tapez pour sélectionner les objets</p>
 </div>
 
+<div id="controls">
+    <button id="vrToggle" class="control-btn">Mode VR</button>
+    <button id="resetView" class="control-btn">Recentrer</button>
+    <button id="fullscreen" class="control-btn">Plein écran</button>
+</div>
+
+<div id="canvas-container"></div>
+
 <script>
-    class GyroscopeController {
-        constructor() {
-            this.cube = document.getElementById('cube');
-            this.isActive = false;
-            this.rotationX = 0;
-            this.rotationY = 0;
-            this.rotationZ = 0;
+    // Configuration de base
+    let scene, camera, renderer, effect;
+    let cubes = [];
+    let spheres = [];
+    let particles = [];
+    let raycaster = new THREE.Raycaster();
+    let clock = new THREE.Clock();
+    let mouse = new THREE.Vector2();
 
-            // Calibration
-            this.calibrationX = 0;
-            this.calibrationY = 0;
-            this.calibrationZ = 0;
-            this.isCalibrating = false;
-            this.calibrationSamples = [];
+    // Variables pour VR mobile
+    let isVRMode = false;
+    let deviceOrientationEnabled = false;
+    let initialOrientation = { alpha: 0, beta: 0, gamma: 0 };
+    let orientationSet = false;
 
-            // Sensibilité
-            this.sensitivityX = 1.0;
-            this.sensitivityY = 1.0;
-            this.sensitivityZ = 1.0;
+    // Contrôles gyroscope
+    let controls = {
+        alpha: 0,
+        beta: 0,
+        gamma: 0
+    };
 
-            // Inversion des axes
-            this.invertX = false;
-            this.invertY = true; // Inverser Y par défaut pour corriger le problème du plafond
-            this.invertZ = false;
+    // Matériaux et couleurs
+    const colors = [0xff6b35, 0x4ecdc4, 0x45b7d1, 0x96ceb4, 0xfeca57, 0xff9ff3, 0x54a0ff];
 
-            // Filtrage
-            this.alpha = 0.8; // Filtre passe-bas
-            this.lastRotationX = 0;
-            this.lastRotationY = 0;
-            this.lastRotationZ = 0;
+    init();
+    animate();
 
-            this.initializeControls();
-            this.checkGyroscopeSupport();
-        }
+    function init() {
+        // Scène
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x000010, 50, 200);
 
-        checkGyroscopeSupport() {
-            const status = document.getElementById('status');
+        // Caméra
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.6, 5);
 
-            if (!window.DeviceOrientationEvent) {
-                status.textContent = 'Gyroscope non supporté';
-                status.className = 'error';
-                return false;
-            }
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x000010);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            // Vérifier si on a besoin de permissions (iOS 13+)
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                status.textContent = 'Permission requise pour iOS';
-                status.className = 'warning';
-            } else {
-                status.textContent = 'Gyroscope supporté';
-                status.className = '';
-            }
+        // Configuration des contrôles
+        setupControls();
+        setupDeviceOrientation();
 
-            return true;
-        }
+        // Éclairage
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        scene.add(ambientLight);
 
-        async requestPermission() {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                try {
-                    const permission = await DeviceOrientationEvent.requestPermission();
-                    if (permission !== 'granted') {
-                        throw new Error('Permission refusée');
-                    }
-                } catch (error) {
-                    console.error('Erreur permission:', error);
-                    document.getElementById('status').textContent = 'Permission refusée';
-                    document.getElementById('status').className = 'error';
-                    return false;
-                }
-            }
-            return true;
-        }
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 10, 5);
+        scene.add(directionalLight);
 
-        initializeControls() {
-            // Boutons
-            document.getElementById('startBtn').addEventListener('click', () => this.start());
-            document.getElementById('stopBtn').addEventListener('click', () => this.stop());
-            document.getElementById('calibrateBtn').addEventListener('click', () => this.calibrate());
-            document.getElementById('resetBtn').addEventListener('click', () => this.reset());
-            document.getElementById('fullscreenBtn').addEventListener('click', () => this.toggleFullscreen());
+        // Lumières colorées
+        const light1 = new THREE.PointLight(0xff6b35, 1, 30);
+        light1.position.set(-10, 5, -10);
+        scene.add(light1);
 
-            // Sliders de sensibilité
-            document.getElementById('sensX').addEventListener('input', (e) => {
-                this.sensitivityX = parseFloat(e.target.value);
-                document.getElementById('sensXValue').textContent = this.sensitivityX.toFixed(1);
-            });
+        const light2 = new THREE.PointLight(0x4ecdc4, 1, 30);
+        light2.position.set(10, 5, 10);
+        scene.add(light2);
 
-            document.getElementById('sensY').addEventListener('input', (e) => {
-                this.sensitivityY = parseFloat(e.target.value);
-                document.getElementById('sensYValue').textContent = this.sensitivityY.toFixed(1);
-            });
+        // Création du monde
+        createFloatingCubes();
+        createFloatingSpheres();
+        createParticleSystem();
+        createEnvironment();
 
-            document.getElementById('sensZ').addEventListener('input', (e) => {
-                this.sensitivityZ = parseFloat(e.target.value);
-                document.getElementById('sensZValue').textContent = this.sensitivityZ.toFixed(1);
-            });
+        // Événements
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('click', onMouseClick);
+        window.addEventListener('touchstart', onTouchStart);
 
-            // Checkboxes d'inversion
-            document.getElementById('invertX').addEventListener('change', (e) => {
-                this.invertX = e.target.checked;
-            });
+        // Vérifier si on doit demander la permission gyroscope
+        checkGyroPermission();
+    }
 
-            document.getElementById('invertY').addEventListener('change', (e) => {
-                this.invertY = e.target.checked;
-            });
+    function setupControls() {
+        const vrToggle = document.getElementById('vrToggle');
+        const resetView = document.getElementById('resetView');
+        const fullscreen = document.getElementById('fullscreen');
 
-            document.getElementById('invertZ').addEventListener('change', (e) => {
-                this.invertZ = e.target.checked;
-            });
-        }
+        vrToggle.addEventListener('click', toggleVRMode);
+        resetView.addEventListener('click', resetCameraView);
+        fullscreen.addEventListener('click', toggleFullscreen);
+    }
 
-        async start() {
-            if (!await this.requestPermission()) {
-                return;
-            }
-
-            this.isActive = true;
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('stopBtn').disabled = false;
-            document.getElementById('status').textContent = 'Gyroscope actif';
-            document.getElementById('status').className = '';
-
-            window.addEventListener('deviceorientation', this.handleOrientation.bind(this));
-        }
-
-        stop() {
-            this.isActive = false;
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('stopBtn').disabled = true;
-            document.getElementById('status').textContent = 'Gyroscope arrêté';
-
-            window.removeEventListener('deviceorientation', this.handleOrientation.bind(this));
-        }
-
-        handleOrientation(event) {
-            if (!this.isActive) return;
-
-            // Récupérer les valeurs brutes
-            let alpha = event.alpha || 0; // Z axis (0-360)
-            let beta = event.beta || 0;   // X axis (-180 to 180)
-            let gamma = event.gamma || 0; // Y axis (-90 to 90)
-
-            // Appliquer la calibration
-            alpha -= this.calibrationZ;
-            beta -= this.calibrationX;
-            gamma -= this.calibrationY;
-
-            // Normaliser les angles
-            alpha = this.normalizeAngle(alpha);
-            beta = this.normalizeAngle(beta);
-            gamma = this.normalizeAngle(gamma);
-
-            // Appliquer les inversions et sensibilités
-            let rotX = beta * this.sensitivityX * (this.invertX ? -1 : 1);
-            let rotY = gamma * this.sensitivityY * (this.invertY ? -1 : 1);
-            let rotZ = alpha * this.sensitivityZ * (this.invertZ ? -1 : 1);
-
-            // Appliquer un filtre passe-bas pour lisser les mouvements
-            rotX = this.alpha * this.lastRotationX + (1 - this.alpha) * rotX;
-            rotY = this.alpha * this.lastRotationY + (1 - this.alpha) * rotY;
-            rotZ = this.alpha * this.lastRotationZ + (1 - this.alpha) * rotZ;
-
-            // Limiter les rotations pour éviter les retournements
-            rotX = Math.max(-85, Math.min(85, rotX));
-            rotY = Math.max(-85, Math.min(85, rotY));
-
-            this.lastRotationX = rotX;
-            this.lastRotationY = rotY;
-            this.lastRotationZ = rotZ;
-
-            this.rotationX = rotX;
-            this.rotationY = rotY;
-            this.rotationZ = rotZ;
-
-            this.updateCube();
-            this.updateInfo(event);
-        }
-
-        normalizeAngle(angle) {
-            while (angle > 180) angle -= 360;
-            while (angle < -180) angle += 360;
-            return angle;
-        }
-
-        updateCube() {
-            // Utiliser une rotation corrigée pour éviter le problème du plafond
-            const transform = `rotateX(${this.rotationX}deg) rotateY(${this.rotationY}deg) rotateZ(${this.rotationZ}deg)`;
-            this.cube.style.transform = transform;
-        }
-
-        updateInfo(event) {
-            document.getElementById('rotX').textContent = `${this.rotationX.toFixed(1)}°`;
-            document.getElementById('rotY').textContent = `${this.rotationY.toFixed(1)}°`;
-            document.getElementById('rotZ').textContent = `${this.rotationZ.toFixed(1)}°`;
-            document.getElementById('gyroX').textContent = (event.beta || 0).toFixed(1);
-            document.getElementById('gyroY').textContent = (event.gamma || 0).toFixed(1);
-            document.getElementById('gyroZ').textContent = (event.alpha || 0).toFixed(1);
-        }
-
-        calibrate() {
-            if (!this.isActive) {
-                alert('Démarrez d\'abord le gyroscope');
-                return;
-            }
-
-            this.isCalibrating = true;
-            this.calibrationSamples = [];
-            document.getElementById('status').textContent = 'Calibration... (3s)';
-            document.getElementById('status').className = 'warning';
-
-            // Collecter des échantillons pendant 3 secondes
-            const startTime = Date.now();
-            const calibrationInterval = setInterval(() => {
-                if (Date.now() - startTime > 3000) {
-                    clearInterval(calibrationInterval);
-                    this.finishCalibration();
-                }
-            }, 100);
-        }
-
-        finishCalibration() {
-            if (this.calibrationSamples.length > 0) {
-                // Calculer la moyenne des échantillons
-                const avgX = this.calibrationSamples.reduce((sum, sample) => sum + sample.x, 0) / this.calibrationSamples.length;
-                const avgY = this.calibrationSamples.reduce((sum, sample) => sum + sample.y, 0) / this.calibrationSamples.length;
-                const avgZ = this.calibrationSamples.reduce((sum, sample) => sum + sample.z, 0) / this.calibrationSamples.length;
-
-                this.calibrationX = avgX;
-                this.calibrationY = avgY;
-                this.calibrationZ = avgZ;
-
-                document.getElementById('status').textContent = 'Calibration terminée';
-                document.getElementById('status').className = '';
-            } else {
-                document.getElementById('status').textContent = 'Échec calibration';
-                document.getElementById('status').className = 'error';
-            }
-
-            this.isCalibrating = false;
-        }
-
-        reset() {
-            this.rotationX = 0;
-            this.rotationY = 0;
-            this.rotationZ = 0;
-            this.calibrationX = 0;
-            this.calibrationY = 0;
-            this.calibrationZ = 0;
-            this.lastRotationX = 0;
-            this.lastRotationY = 0;
-            this.lastRotationZ = 0;
-            this.updateCube();
-            document.getElementById('status').textContent = 'Position réinitialisée';
-        }
-
-        toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.error('Erreur plein écran:', err);
-                });
-            } else {
-                document.exitFullscreen();
-            }
+    function checkGyroPermission() {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            document.getElementById('gyro-permission').style.display = 'flex';
+        } else {
+            setupDeviceOrientation();
         }
     }
 
-    // Initialiser l'application
-    document.addEventListener('DOMContentLoaded', () => {
-        new GyroscopeController();
-    });
+    function requestGyroPermission() {
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(response => {
+                    if (response === 'granted') {
+                        document.getElementById('gyro-permission').style.display = 'none';
+                        setupDeviceOrientation();
+                    } else {
+                        alert('Permission gyroscope refusée. Les contrôles de tête ne fonctionneront pas.');
+                        document.getElementById('gyro-permission').style.display = 'none';
+                    }
+                })
+                .catch(console.error);
+        } else {
+            document.getElementById('gyro-permission').style.display = 'none';
+            setupDeviceOrientation();
+        }
+    }
 
-    // Gestion du plein écran
-    document.addEventListener('fullscreenchange', () => {
-        const btn = document.getElementById('fullscreenBtn');
-        btn.textContent = document.fullscreenElement ? 'Quitter Plein Écran' : 'Plein Écran';
-    });
+    function setupDeviceOrientation() {
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', onDeviceOrientation);
+            deviceOrientationEnabled = true;
+        }
+    }
 
-    // Gestion des erreurs
-    window.addEventListener('error', (e) => {
-        console.error('Erreur:', e.error);
-        document.getElementById('status').textContent = 'Erreur: ' + e.error.message;
-        document.getElementById('status').className = 'error';
-    });
+    function onDeviceOrientation(event) {
+        if (!deviceOrientationEnabled) return;
+
+        // Calibrage initial
+        if (!orientationSet) {
+            initialOrientation = {
+                alpha: event.alpha || 0,
+                beta: event.beta || 0,
+                gamma: event.gamma || 0
+            };
+            orientationSet = true;
+        }
+
+        // Calculer les angles relatifs
+        controls.alpha = (event.alpha || 0) - initialOrientation.alpha;
+        controls.beta = (event.beta || 0) - initialOrientation.beta;
+        controls.gamma = (event.gamma || 0) - initialOrientation.gamma;
+
+        updateCameraFromOrientation();
+    }
+
+    function updateCameraFromOrientation() {
+        if (!deviceOrientationEnabled) return;
+
+        // Convertir les angles en radians
+        const alpha = controls.alpha * Math.PI / 180;
+        const beta = controls.beta * Math.PI / 180;
+        const gamma = controls.gamma * Math.PI / 180;
+
+        // Appliquer la rotation à la caméra
+        camera.rotation.order = 'YXZ';
+        camera.rotation.y = -alpha;
+        camera.rotation.x = -beta;
+        camera.rotation.z = gamma;
+    }
+
+    function toggleVRMode() {
+        const vrToggle = document.getElementById('vrToggle');
+        const info = document.getElementById('info');
+        const controls = document.getElementById('controls');
+
+        isVRMode = !isVRMode;
+
+        if (isVRMode) {
+            // Activer le mode VR (écran divisé)
+            vrToggle.textContent = 'Mode Normal';
+            vrToggle.classList.add('active');
+            info.style.display = 'none';
+            controls.style.display = 'none';
+
+            // Créer l'effet stéréoscopique
+            createStereoEffect();
+
+            // Forcer le plein écran
+            requestFullscreen();
+        } else {
+            // Désactiver le mode VR
+            vrToggle.textContent = 'Mode VR';
+            vrToggle.classList.remove('active');
+            info.style.display = 'block';
+            controls.style.display = 'flex';
+
+            // Retour au rendu normal
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setScissorTest(false);
+        }
+    }
+
+    function createStereoEffect() {
+        // Distance inter-pupillaire (IPD) typique
+        const eyeSeparation = 0.064;
+
+        renderer.setScissorTest(true);
+
+        // Configurer pour le rendu stéréoscopique
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        renderer.setSize(width, height);
+    }
+
+    function renderStereo() {
+        if (!isVRMode) {
+            renderer.render(scene, camera);
+            return;
+        }
+
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const eyeSeparation = 0.032; // Moitié de l'IPD
+
+        renderer.setScissorTest(true);
+
+        // Œil gauche
+        renderer.setScissor(0, 0, width / 2, height);
+        renderer.setViewport(0, 0, width / 2, height);
+
+        camera.position.x -= eyeSeparation;
+        renderer.render(scene, camera);
+
+        // Œil droit
+        renderer.setScissor(width / 2, 0, width / 2, height);
+        renderer.setViewport(width / 2, 0, width / 2, height);
+
+        camera.position.x += eyeSeparation * 2;
+        renderer.render(scene, camera);
+
+        // Restaurer la position
+        camera.position.x -= eyeSeparation;
+
+        renderer.setScissorTest(false);
+    }
+
+    function resetCameraView() {
+        camera.position.set(0, 1.6, 5);
+        camera.rotation.set(0, 0, 0);
+
+        // Recalibrer l'orientation
+        orientationSet = false;
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function requestFullscreen() {
+        const element = document.documentElement;
+        if (element.requestFullscreen) {
+            element.requestFullscreen();
+        } else if (element.webkitRequestFullscreen) {
+            element.webkitRequestFullscreen();
+        } else if (element.mozRequestFullScreen) {
+            element.mozRequestFullScreen();
+        }
+    }
+
+    function createFloatingCubes() {
+        for (let i = 0; i < 15; i++) {
+            const geometry = new THREE.BoxGeometry(
+                Math.random() * 2 + 0.5,
+                Math.random() * 2 + 0.5,
+                Math.random() * 2 + 0.5
+            );
+
+            const material = new THREE.MeshPhongMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                transparent: true,
+                opacity: 0.8
+            });
+
+            const cube = new THREE.Mesh(geometry, material);
+
+            cube.position.set(
+                (Math.random() - 0.5) * 30,
+                Math.random() * 10 + 2,
+                (Math.random() - 0.5) * 30
+            );
+
+            cube.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+            );
+
+            cube.userData = {
+                originalColor: material.color.getHex(),
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.02,
+                    y: (Math.random() - 0.5) * 0.02,
+                    z: (Math.random() - 0.5) * 0.02
+                },
+                floatSpeed: Math.random() * 0.02 + 0.01,
+                floatOffset: Math.random() * Math.PI * 2
+            };
+
+            cubes.push(cube);
+            scene.add(cube);
+        }
+    }
+
+    function createFloatingSpheres() {
+        for (let i = 0; i < 12; i++) {
+            const geometry = new THREE.SphereGeometry(Math.random() * 1.5 + 0.3, 16, 16);
+
+            const material = new THREE.MeshPhongMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                transparent: true,
+                opacity: 0.7,
+                emissive: colors[Math.floor(Math.random() * colors.length)],
+                emissiveIntensity: 0.1
+            });
+
+            const sphere = new THREE.Mesh(geometry, material);
+
+            sphere.position.set(
+                (Math.random() - 0.5) * 25,
+                Math.random() * 8 + 3,
+                (Math.random() - 0.5) * 25
+            );
+
+            sphere.userData = {
+                originalColor: material.color.getHex(),
+                originalEmissive: material.emissive.getHex(),
+                floatSpeed: Math.random() * 0.03 + 0.01,
+                floatOffset: Math.random() * Math.PI * 2,
+                pulseSpeed: Math.random() * 0.05 + 0.02
+            };
+
+            spheres.push(sphere);
+            scene.add(sphere);
+        }
+    }
+
+    function createParticleSystem() {
+        const particleCount = 200;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount * 3; i += 3) {
+            positions[i] = (Math.random() - 0.5) * 100;
+            positions[i + 1] = Math.random() * 50;
+            positions[i + 2] = (Math.random() - 0.5) * 100;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.PointsMaterial({
+            color: 0x4ecdc4,
+            size: 0.5,
+            transparent: true,
+            opacity: 0.6
+        });
+
+        const particleSystem = new THREE.Points(geometry, material);
+        scene.add(particleSystem);
+        particles.push(particleSystem);
+    }
+
+    function createEnvironment() {
+        // Sol avec grille
+        const gridGeometry = new THREE.PlaneGeometry(100, 100, 50, 50);
+        const gridMaterial = new THREE.MeshBasicMaterial({
+            color: 0x333333,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+        });
+
+        const grid = new THREE.Mesh(gridGeometry, gridMaterial);
+        grid.rotation.x = -Math.PI / 2;
+        grid.position.y = 0;
+        scene.add(grid);
+
+        // Ciel étoilé
+        const starsGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(1000 * 3);
+
+        for (let i = 0; i < 1000 * 3; i += 3) {
+            starPositions[i] = (Math.random() - 0.5) * 200;
+            starPositions[i + 1] = Math.random() * 100 + 20;
+            starPositions[i + 2] = (Math.random() - 0.5) * 200;
+        }
+
+        starsGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+
+        const starsMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 1,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        const stars = new THREE.Points(starsGeometry, starsMaterial);
+        scene.add(stars);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        render();
+    }
+
+    function render() {
+        const time = clock.getElapsedTime();
+
+        // Animation des cubes
+        cubes.forEach((cube, index) => {
+            const userData = cube.userData;
+
+            cube.rotation.x += userData.rotationSpeed.x;
+            cube.rotation.y += userData.rotationSpeed.y;
+            cube.rotation.z += userData.rotationSpeed.z;
+
+            cube.position.y += Math.sin(time * userData.floatSpeed + userData.floatOffset) * 0.01;
+        });
+
+        // Animation des sphères
+        spheres.forEach((sphere, index) => {
+            const userData = sphere.userData;
+
+            sphere.position.y += Math.sin(time * userData.floatSpeed + userData.floatOffset) * 0.015;
+            sphere.position.x += Math.cos(time * userData.floatSpeed * 0.5) * 0.005;
+
+            const scale = 1 + Math.sin(time * userData.pulseSpeed) * 0.1;
+            sphere.scale.setScalar(scale);
+        });
+
+        // Animation des particules
+        particles.forEach(particleSystem => {
+            particleSystem.rotation.y += 0.001;
+            const positions = particleSystem.geometry.attributes.position.array;
+
+            for (let i = 1; i < positions.length; i += 3) {
+                positions[i] += Math.sin(time + positions[i] * 0.01) * 0.01;
+            }
+
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+        });
+
+        // Rendu stéréoscopique ou normal
+        renderStereo();
+    }
+
+    function onMouseClick(event) {
+        if (isVRMode) return;
+
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        checkIntersection();
+    }
+
+    function onTouchStart(event) {
+        event.preventDefault();
+        if (event.touches.length === 1) {
+            const touch = event.touches[0];
+            mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
+            checkIntersection();
+        }
+    }
+
+    function checkIntersection() {
+        raycaster.setFromCamera(mouse, camera);
+
+        const intersects = raycaster.intersectObjects([...cubes, ...spheres]);
+
+        if (intersects.length > 0) {
+            const object = intersects[0].object;
+
+            // Animation de sélection
+            object.material.color.setHex(0xffffff);
+            object.scale.setScalar(1.3);
+
+            setTimeout(() => {
+                object.material.color.setHex(object.userData.originalColor);
+                object.scale.setScalar(1);
+            }, 500);
+        }
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
 </script>
 </body>
 </html>
