@@ -305,6 +305,7 @@
     let deviceOrientationEnabled = false;
     let gyroPermissionGranted = false;
     let isFullscreen = false;
+    let screenOrientation = 'portrait';
 
     // Système de calibrage amélioré
     let orientationCalibration = {
@@ -325,8 +326,8 @@
     };
 
     // Paramètres de lissage
-    const SMOOTHING_FACTOR = 0.1;
-    const ORIENTATION_THRESHOLD = 1; // Seuil minimum de changement
+    const SMOOTHING_FACTOR = 0.15;
+    const ORIENTATION_THRESHOLD = 0.5;
 
     // Matériaux et couleurs améliorés
     const colors = [
@@ -513,16 +514,34 @@
         }
 
         // Mise à jour des données brutes
-        orientationData.alpha = event.alpha || 0;
-        orientationData.beta = event.beta || 0;
-        orientationData.gamma = event.gamma || 0;
+        const newAlpha = event.alpha || 0;
+        const newBeta = event.beta || 0;
+        const newGamma = event.gamma || 0;
+        
+        // Filtrer les petits mouvements pour éviter les saccades
+        if (Math.abs(newAlpha - orientationData.alpha) > ORIENTATION_THRESHOLD ||
+            Math.abs(newBeta - orientationData.beta) > ORIENTATION_THRESHOLD ||
+            Math.abs(newGamma - orientationData.gamma) > ORIENTATION_THRESHOLD) {
+            
+            orientationData.alpha = newAlpha;
+            orientationData.beta = newBeta;
+            orientationData.gamma = newGamma;
 
-        // Lissage des données
-        orientationData.smoothAlpha = lerp(orientationData.smoothAlpha, orientationData.alpha, SMOOTHING_FACTOR);
-        orientationData.smoothBeta = lerp(orientationData.smoothBeta, orientationData.beta, SMOOTHING_FACTOR);
-        orientationData.smoothGamma = lerp(orientationData.smoothGamma, orientationData.gamma, SMOOTHING_FACTOR);
+            // Lissage des données avec facteur adaptatif basé sur la vitesse de mouvement
+            const movementMagnitude = Math.abs(newAlpha - orientationData.smoothAlpha) + 
+                                     Math.abs(newBeta - orientationData.smoothBeta) + 
+                                     Math.abs(newGamma - orientationData.smoothGamma);
+            
+            // Ajuster le facteur de lissage en fonction de la magnitude du mouvement
+            // Mouvements rapides = moins de lissage, mouvements lents = plus de lissage
+            const adaptiveFactor = Math.min(0.8, Math.max(0.1, SMOOTHING_FACTOR * (1 + movementMagnitude * 0.01)));
+            
+            orientationData.smoothAlpha = lerp(orientationData.smoothAlpha, orientationData.alpha, adaptiveFactor);
+            orientationData.smoothBeta = lerp(orientationData.smoothBeta, orientationData.beta, adaptiveFactor);
+            orientationData.smoothGamma = lerp(orientationData.smoothGamma, orientationData.gamma, adaptiveFactor);
 
-        updateCameraFromOrientation();
+            updateCameraFromOrientation();
+        }
     }
 
     function lerp(start, end, factor) {
@@ -547,11 +566,11 @@
         const betaRad = beta * Math.PI / 180;
         const gammaRad = gamma * Math.PI / 180;
 
-        // Appliquer la rotation à la caméra
+        // Appliquer la rotation à la caméra avec correction de l'inversion
         camera.rotation.order = 'YXZ';
-        camera.rotation.y = -alphaRad;
-        camera.rotation.x = -betaRad;
-        camera.rotation.z = gammaRad * 0.5; // Réduire l'effet de roulis
+        camera.rotation.y = -alphaRad; // Inverser le signe pour corriger l'orientation
+        camera.rotation.x = -betaRad; // Garder le signe négatif pour l'axe X
+        camera.rotation.z = -gammaRad * 0.5; // Inverser et réduire l'effet de roulis
     }
 
     function normalizeAngle(angle) {
@@ -674,13 +693,34 @@
 
     function requestFullscreen() {
         const element = document.documentElement;
-        const requestMethod = element.requestFullscreen ||
-            element.webkitRequestFullscreen ||
-            element.mozRequestFullScreen ||
-            element.msRequestFullscreen;
+        
+        // Vérifier si c'est un iPhone
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        
+        if (isIOS) {
+            // Sur iOS, utiliser une approche différente pour le plein écran
+            if (document.body.webkitRequestFullscreen) {
+                document.body.webkitRequestFullscreen();
+            } else if (document.body.webkitEnterFullscreen) {
+                document.body.webkitEnterFullscreen();
+            }
+            
+            // Forcer l'orientation paysage sur iOS
+            if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+                window.screen.orientation.lock('landscape').catch(e => {
+                    console.warn('Impossible de verrouiller l\'orientation:', e);
+                });
+            }
+        } else {
+            // Méthode standard pour les autres appareils
+            const requestMethod = element.requestFullscreen ||
+                element.webkitRequestFullscreen ||
+                element.mozRequestFullScreen ||
+                element.msRequestFullscreen;
 
-        if (requestMethod) {
-            requestMethod.call(element);
+            if (requestMethod) {
+                requestMethod.call(element);
+            }
         }
     }
 
@@ -880,6 +920,10 @@
         window.addEventListener('resize', onWindowResize);
         window.addEventListener('click', onMouseClick);
         window.addEventListener('touchstart', onTouchStart);
+        window.addEventListener('orientationchange', () => {
+            console.log('📱 Changement d\'orientation');
+            setTimeout(detectScreenOrientation, 300); // Délai pour laisser le temps au navigateur de s'ajuster
+        });
 
         // Double tap pour quitter le mode VR
         let lastTouchTime = 0;
@@ -1056,11 +1100,31 @@
         animateEffect();
     }
 
+    function detectScreenOrientation() {
+        // Détecter l'orientation de l'écran
+        if (window.innerHeight > window.innerWidth) {
+            if (screenOrientation !== 'portrait') {
+                screenOrientation = 'portrait';
+                console.log('📱 Orientation: portrait');
+                document.getElementById('orientation-warning').style.display = 'flex';
+            }
+        } else {
+            if (screenOrientation !== 'landscape') {
+                screenOrientation = 'landscape';
+                console.log('📱 Orientation: paysage');
+                document.getElementById('orientation-warning').style.display = 'none';
+            }
+        }
+    }
+
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
         console.log('📱 Redimensionnement:', window.innerWidth, 'x', window.innerHeight);
+        
+        // Détecter l'orientation
+        detectScreenOrientation();
     }
 
     // Initialisation des statuts
