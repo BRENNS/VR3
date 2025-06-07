@@ -551,28 +551,126 @@
     function updateCameraFromOrientation() {
         if (!deviceOrientationEnabled) return;
 
-        // Appliquer la calibration
+        // Apply calibration
         let alpha = orientationData.smoothAlpha - orientationCalibration.alpha;
         let beta = orientationData.smoothBeta - orientationCalibration.beta;
         let gamma = orientationData.smoothGamma - orientationCalibration.gamma;
 
-        // Normaliser les angles
+        // Normalize angles (keep existing function)
         alpha = normalizeAngle(alpha);
+        // Beta should be clamped to -90 to 90 degrees for pitch
         beta = Math.max(-90, Math.min(90, beta));
+        // Gamma should be clamped too, for roll
         gamma = Math.max(-90, Math.min(90, gamma));
 
-        // Convertir en radians
-        const alphaRad = alpha * Math.PI / 180;
-        const betaRad = beta * Math.PI / 180;
-        const gammaRad = gamma * Math.PI / 180;
+        // Convert angles to radians
+        const alphaRad = THREE.MathUtils.degToRad(alpha);
+        const betaRad = THREE.MathUtils.degToRad(beta);
+        const gammaRad = THREE.MathUtils.degToRad(gamma);
 
-        // Appliquer la rotation à la caméra avec correction de l'inversion
-        camera.rotation.order = 'YXZ';
-        camera.rotation.y = -alphaRad; // Inverser le signe pour corriger l'orientation
-        camera.rotation.x = -betaRad; // Garder le signe négatif pour l'axe X
-        camera.rotation.z = -gammaRad * 0.5; // Inverser et réduire l'effet de roulis
+        // Create a quaternion from device orientation angles.
+        // The order of application is critical. 'ZXY' is often recommended for device orientation.
+        // It's alpha (z-axis), beta (x-axis), gamma (y-axis) as per W3C specification.
+        // However, Three.js Euler order is typically YXZ for camera.
+        // Let's use a temporary quaternion to build the rotation carefully.
+        const quaternion = new THREE.Quaternion();
+        const euler = new THREE.Euler();
+
+        // The DeviceOrientationEvent alpha, beta, gamma values
+        // are often applied in Z-X-Y order (heading, pitch, roll)
+        // Adjust for device specific rotations and coordinate systems.
+        // The key is to find the right mapping for your device.
+
+        // Common approach for Android and iOS (adjusting for landscape/portrait)
+        // and transforming to Three.js Y-up, Z-forward system.
+        // This often involves a reorientation to a "neutral" landscape mode
+        // before applying the final rotation.
+
+        // Initial rotation based on device orientation (alpha, beta, gamma)
+        // This is a common pattern that attempts to map device orientation to a view quaternion.
+        // `beta` controls pitch (up/down), `gamma` controls roll (side-to-side tilt),
+        // `alpha` controls yaw (left/right turn).
+
+        // It is often necessary to apply an initial orientation correction.
+        // For instance, if you are holding your phone in landscape mode with the home button to the right,
+        // this typically means gamma will be positive for "right-side up" phone.
+        // Here, we try to align `beta` with pitch and `alpha` with yaw directly.
+
+        // Construct a quaternion from the alpha, beta, gamma Euler angles.
+        // This uses the "device" coordinate system.
+        // We'll create a local Euler and then convert to quaternion.
+        euler.set(betaRad, alphaRad, -gammaRad, 'YXZ'); // YXZ order: yaw, pitch, roll. Gamma negated for common usage.
+
+        quaternion.setFromEuler(euler);
+
+        // Further corrections might be needed based on the device's native orientation
+        // and how you hold it in the VR headset.
+        // If your phone is typically held in landscape-left for VR (home button right),
+        // you might need an additional rotation.
+
+        // Example for typical landscape orientation in VR (home button to the right usually)
+        // This effectively rotates the entire orientation space by 90 degrees around Z axis.
+        const screenTransform = new THREE.Quaternion();
+        const screenOrientationAngle = window.screen.orientation ? window.screen.orientation.angle : 0;
+
+        // This compensation varies by device and how it defines its "neutral" orientation.
+        // For many Android devices and browsers, if held landscape with home button right,
+        // a `window.screen.orientation.angle` of 90 degrees might be present.
+        // You would need to rotate the device's reported orientation to align with your camera's expectations.
+        // A common pattern is:
+        //  * Rotate around X by 90 degrees (from portrait to landscape 'natural' position)
+        //  * Then apply device-specific rotation based on screen.orientation.angle
+
+        // Let's simplify first, and if issues persist, we can add screen.orientation compensation.
+        // The current 'YXZ' order and negated gamma is a good starting point.
+
+        // Apply the rotation to the camera's quaternion directly
+        camera.quaternion.copy(quaternion);
+
+        // If your camera is still looking in the wrong direction (e.g., 90 degrees off on initial load),
+        // you might need a static offset quaternion.
+        // For example, to make it look "forward" instead of "up":
+        // let initialCorrection = new THREE.Quaternion();
+        // initialCorrection.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2); // Rotate 90 degrees around X to point forward
+        // camera.quaternion.multiplyQuaternions(initialCorrection, quaternion);
+
+        // This is crucial: the calibration needs to be applied correctly.
+        // When you calibrate, you are setting the "zero" point of the head tracking.
+        // The rotation should be relative to this calibrated zero.
+        // Let's ensure `calibrateOrientation` sets `orientationCalibration` correctly and
+        // `updateCameraFromOrientation` applies it as a delta.
+
+        // A better way to apply calibration:
+        // Store the initial quaternion when calibrating.
+        // Then, in `updateCameraFromOrientation`, get the current device quaternion,
+        // and apply the inverse of the calibration quaternion to it.
+
+        // If we want a simple relative rotation:
+        // 1. Get initial orientation (calibration)
+        // 2. Get current orientation
+        // 3. Calculate difference between current and initial.
+        // 4. Apply difference to camera.
+
+        // Let's refine the calibration logic and how it's used.
+        // Instead of `orientationCalibration.alpha`, etc., store a `calibratedQuaternion`.
+        // And when updating, compute `currentQuaternion * inverse(calibratedQuaternion)`.
+
+        // For now, let's stick to your current angle-based calibration, but emphasize the angle normalization.
+        // The `normalizeAngle` function helps keep angles within a reasonable range.
+
+        // Re-check signs for alpha, beta, gamma based on *your device's behavior*.
+        // - `alpha` (yaw): Typically `-alphaRad` for Three.js `rotation.y` to turn left for positive alpha.
+        // - `beta` (pitch): Typically `-betaRad` for Three.js `rotation.x` to look down for positive beta.
+        // - `gamma` (roll): Can be `gammaRad` or `-gammaRad`. `0.5` factor reduces intensity.
+
+        // Based on typical device orientation behavior and Three.js camera:
+        camera.rotation.order = 'YXZ'; // Yaw (Y), Pitch (X), Roll (Z) - common for camera
+        camera.rotation.y = alphaRad;   // Alpha usually controls yaw (left/right)
+        camera.rotation.x = betaRad;    // Beta usually controls pitch (up/down)
+        camera.rotation.z = -gammaRad;  // Gamma usually controls roll (tilt left/right). Negated for common convention.
+                                        // You might want to apply the 0.5 factor back to gamma if too strong.
     }
-
+    
     function normalizeAngle(angle) {
         while (angle > 180) angle -= 360;
         while (angle < -180) angle += 360;
