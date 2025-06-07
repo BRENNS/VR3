@@ -37,484 +37,495 @@
         #controls {
             position: absolute;
             bottom: 10px;
-            right: 10px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 100;
             display: flex;
-            flex-direction: column;
             gap: 10px;
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
-            border-radius: 15px;
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.1);
         }
 
         .control-button {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.2);
             color: white;
             border: none;
             padding: 12px 20px;
             border-radius: 10px;
             font-size: 16px;
             cursor: pointer;
-            transition: background 0.3s ease, transform 0.1s ease;
-            text-align: center;
+            backdrop-filter: blur(5px);
+            transition: background 0.3s ease;
         }
 
         .control-button:active {
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(0.98);
+            background: rgba(255, 255, 255, 0.4);
         }
 
-        .control-button:hover {
-            background: rgba(255, 255, 255, 0.2);
+        #status-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 15px;
         }
 
-        #status-vr, #status-gyro, #status-fullscreen {
-            font-weight: bold;
+        .status-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .status-circle {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background-color: #888;
+            transition: background-color 0.3s ease;
+        }
+
+        .status-circle.active {
+            background-color: #4CAF50; /* Green */
+        }
+
+        .status-circle.error {
+            background-color: #f44336; /* Red */
         }
 
         #orientation-warning {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.95);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 165, 0, 0.9);
             color: white;
-            display: none; /* Hidden by default */
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 200;
-            font-size: 20px;
-            text-align: center;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        #movement-controls { /* NEW: Style for movement controls */
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-            background: rgba(0,0,0,0.7);
-            padding: 15px;
+            padding: 20px 30px;
             border-radius: 15px;
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 18px;
+            text-align: center;
+            z-index: 200;
+            display: none; /* Hidden by default */
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
         }
 
-        #movement-controls .row {
-            display: flex;
-            gap: 5px;
-            justify-content: center;
+        /* Reticle for Gaze-Based Movement */
+        #reticle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px; /* Adjust size as needed */
+            height: 20px; /* Adjust size as needed */
+            border-radius: 50%;
+            border: 2px solid white;
+            box-sizing: border-box;
+            z-index: 1000; /* Ensure it's on top */
+            opacity: 0.8;
+            pointer-events: none; /* Make sure it doesn't block clicks */
+            transition: border-color 0.1s ease-in-out, transform 0.1s ease-in-out, opacity 0.1s ease-in-out;
         }
+
+        #reticle.active-gaze {
+            border-color: limegreen;
+            transform: translate(-50%, -50%) scale(0.8);
+            opacity: 1;
+        }
+
+        #reticle.gazing-ready {
+            border-color: yellow;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
     </style>
 </head>
 <body>
 <div id="info">
-    <h3>Statut du jeu</h3>
-    <p>VR Mode: <span id="status-vr">Désactivé</span></p>
-    <p>Gyroscope: <span id="status-gyro">Non disponible</span></p>
-    <p>Plein Écran: <span id="status-fullscreen">Non disponible</span></p>
-    <p>Orientation: <span id="current-orientation">Chargement...</span></p>
-    <p>FPS: <span id="fps-display">0</span></p>
-    <p>Position: X:<span id="pos-x">0</span> Y:<span id="pos-y">0</span> Z:<span id="pos-z">0</span></p>
+    <h3>Expérience VR Mobile</h3>
+    <p>Utilisez les capteurs de votre appareil pour explorer.</p>
+    <div id="status-container">
+        <div class="status-item"><span id="gyro-status" class="status-circle"></span> Gyroscope</div>
+        <div class="status-item"><span id="vr-status" class="status-circle"></span> Mode VR</div>
+        <div class="status-item"><span id="fullscreen-status" class="status-circle"></span> Plein Écran</div>
+    </div>
 </div>
 
 <div id="controls">
-    <button id="toggleVR" class="control-button">Activer VR</button>
-    <button id="requestGyro" class="control-button">Activer Gyroscope</button>
-    <button id="calibrate" class="control-button">Calibrer Vue</button>
-    <button id="toggleFullscreen" class="control-button">Plein Écran</button>
-    <button id="resetView" class="control-button">Recentrer</button>
-</div>
-
-<div id="movement-controls">
-    <div class="row">
-        <button id="moveForward" class="control-button">▲ Avancer</button>
-    </div>
-    <div class="row">
-        <button id="moveLeft" class="control-button">◀ Gauche</button>
-        <button id="moveBackward" class="control-button">▼ Reculer</button>
-        <button id="moveRight" class="control-button">▶ Droite</button>
-    </div>
+    <button id="request-gyro-permission" class="control-button" style="display: none;">Activer Gyroscope</button>
+    <button id="toggle-vr" class="control-button">Activer VR</button>
+    <button id="calibrate-orientation" class="control-button">Calibrer Vue</button>
+    <button id="toggle-fullscreen" class="control-button">Plein Écran</button>
 </div>
 
 <div id="orientation-warning">
-    <p>Veuillez tourner votre appareil en mode paysage pour une meilleure expérience VR.</p>
+    <p>Veuillez faire pivoter votre appareil en mode **paysage** pour une expérience VR optimale.</p>
 </div>
 
-<script>
-    // Three.js setup
-    let scene, camera, renderer;
+<div id="reticle"></div> <script>
+    // --- THREE.js Variables ---
+    let scene, camera, renderer, effect;
+    let container;
+    let playerGroup; // A group to hold the camera for movement
+    let stars;
     let vrEnabled = false;
-    let effect; // For StereoEffect
     let deviceOrientationEnabled = false;
-    let screenOrientation = ''; // 'portrait' or 'landscape'
+    let fullscreenEnabled = false;
+    let screenOrientation = 'portrait'; // Initial assumption
 
-    // Gyroscope data
-    const orientationData = {
-        alpha: 0, beta: 0, gamma: 0,
-        smoothAlpha: 0, smoothBeta: 0, smoothGamma: 0
-    };
-    const orientationCalibration = {
-        alpha: 0, beta: 0, gamma: 0
-    };
+    // --- Device Orientation Variables ---
+    let orientationData = { alpha: 0, beta: 0, gamma: 0, smoothAlpha: 0, smoothBeta: 0, smoothGamma: 0 };
+    let orientationCalibration = { alpha: 0, beta: 0, gamma: 0 }; // Stores initial orientation for calibration
 
-    // Parameters de lissage
-    const SMOOTHING_FACTOR = 0.25;
-    const ORIENTATION_THRESHOLD = 0.2;
+    // --- Smoothing Parameters ---
+    const SMOOTHING_FACTOR = 0.25; // Adjusted for smoother movement
+    const ORIENTATION_THRESHOLD = 0.2; // Threshold for updating camera (reduces tiny jitters)
 
-    // FPS counter
-    let lastFrameTime = 0;
-    let frameCount = 0;
-    let fps = 0;
+    // --- Gaze-Based Movement Variables ---
+    let raycaster;
+    let movementTarget; // The invisible object to look at for movement
+    let movementSpeed = 0.05; // Speed of movement
+    let gazeTimer = 0;
+    const GAZE_ACTIVATION_TIME = 1000; // Time in ms to look at target to start moving
+    let isMoving = false;
+    let reticle; // The DOM element for the reticle
 
-    // Movement variables (NEW)
-    const movementSpeed = 0.1; // Adjust as needed
-    let moveForward = false;
-    let moveBackward = false;
-    let moveLeft = false;
-    let moveRight = false;
-
-    // Initialisation
+    // --- Initial Setup ---
     init();
     animate();
-    setupControls();
 
     function init() {
-        // Scene
+        // Scene setup
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x222222);
+        scene.background = new THREE.Color(0x050510); // Darker background
 
-        // Camera
+        // Camera setup
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.6, 0); // Position the camera at a typical "eye level"
 
-        // Renderer
+        // Player group for movement
+        playerGroup = new THREE.Group();
+        scene.add(playerGroup);
+        playerGroup.add(camera); // Camera is now a child of playerGroup
+
+        // Renderer setup
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Lights
-        const ambientLight = new THREE.AmbientLight(0x404040);
+        // Effect for VR stereo rendering
+        effect = new THREE.StereoEffect(renderer);
+        effect.setSize(window.innerWidth, window.innerHeight);
+
+        // Add Reticle
+        reticle = document.getElementById('reticle');
+
+        // Raycaster for gaze detection
+        raycaster = new THREE.Raycaster();
+
+        // Add a movement target in front of the player (invisible)
+        const movementTargetGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const movementTargetMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0 }); // Invisible
+        movementTarget = new THREE.Mesh(movementTargetGeometry, movementTargetMaterial);
+        movementTarget.position.set(0, 0, -5); // Position it 5 units in front of the camera (relative to playerGroup)
+        playerGroup.add(movementTarget); // Add target to player group so it moves with the player
+
+        // --- Lights ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
-        directionalLight.position.set(1, 1, 1).normalize();
-        scene.add(directionalLight);
 
-        // Floor
-        const floorGeometry = new THREE.PlaneGeometry(100, 100);
-        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-        floor.rotation.x = -Math.PI / 2;
-        scene.add(floor);
+        // --- Objects in the Scene ---
+        addStars();
+        addCube(); // Add a simple cube to see movement
 
-        // Add some basic objects to the scene
-        addBox(0, 1, -5, 0xff0000); // Red box in front
-        addBox(-3, 1, -3, 0x00ff00); // Green box left
-        addBox(3, 1, -3, 0x0000ff);  // Blue box right
-        addBox(0, 1, 5, 0xffff00); // Yellow box behind
-        addBox(-5, 1, 0, 0xff00ff); // Magenta box left
-        addBox(5, 1, 0, 0x00ffff);  // Cyan box right
+        // --- Event Listeners ---
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('deviceorientation', onDeviceOrientation, true);
 
-        // Add a sphere
-        const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
-        const sphereMaterial = new THREE.MeshLambertMaterial({ color: 0xffa500 });
-        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-        sphere.position.set(0, 1.5, -10);
-        scene.add(sphere);
+        // Button Listeners
+        document.getElementById('request-gyro-permission').addEventListener('click', requestDeviceOrientationPermission);
+        document.getElementById('toggle-vr').addEventListener('click', toggleVR);
+        document.getElementById('calibrate-orientation').addEventListener('click', calibrateOrientation);
+        document.getElementById('toggle-fullscreen').addEventListener('click', toggleFullscreen);
 
-        // Event listeners
-        window.addEventListener('resize', onWindowResize, false);
-        detectScreenOrientation(); // Initial orientation check
+        // Initial checks
+        detectScreenOrientation();
+        checkDeviceOrientationSupport();
+
+        // Initial calibration
+        calibrateOrientation(); // Calibrate on start
     }
 
-    function addBox(x, y, z, color) {
+    function addStars() {
+        const starGeometry = new THREE.BufferGeometry();
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
+
+        const vertices = [];
+        for (let i = 0; i < 5000; i++) {
+            const x = THREE.MathUtils.randFloatSpread(2000); // spread over 2000 units
+            const y = THREE.MathUtils.randFloatSpread(2000);
+            const z = THREE.MathUtils.randFloatSpread(2000);
+            vertices.push(x, y, z);
+        }
+        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+    }
+
+    function addCube() {
         const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshLambertMaterial({ color: color });
-        const box = new THREE.Mesh(geometry, material);
-        box.position.set(x, y, z);
-        scene.add(box);
+        const material = new THREE.MeshNormalMaterial(); // Shows normals
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(0, 0, -10); // Place it in front of the camera
+        scene.add(cube);
     }
 
     function animate() {
         requestAnimationFrame(animate);
 
-        const currentTime = performance.now();
-        const deltaTime = (currentTime - lastFrameTime) / 1000; // in seconds
-        lastFrameTime = currentTime;
-
-        // FPS calculation
-        frameCount++;
-        if (frameCount % 60 === 0) { // Update FPS every 60 frames
-            fps = Math.round(1 / deltaTime);
-            document.getElementById('fps-display').textContent = fps;
-            frameCount = 0;
-        }
-
-        // Update camera position based on movement flags (NEW)
-        if (vrEnabled) { // Only allow movement in VR mode
-            const forward = new THREE.Vector3();
-            camera.getWorldDirection(forward); // Get camera's forward direction
-            forward.y = 0; // Keep movement on the horizontal plane
-            forward.normalize();
-
-            const right = new THREE.Vector3();
-            right.crossVectors(camera.up, forward); // Get camera's right direction
-            right.y = 0; // Keep movement on the horizontal plane
-            right.normalize();
-
-            if (moveForward) {
-                camera.position.addScaledVector(forward, movementSpeed * deltaTime * 60); // Scale by deltaTime for smooth movement
-            }
-            if (moveBackward) {
-                camera.position.addScaledVector(forward, -movementSpeed * deltaTime * 60);
-            }
-            if (moveLeft) {
-                camera.position.addScaledVector(right, -movementSpeed * deltaTime * 60);
-            }
-            if (moveRight) {
-                camera.position.addScaledVector(right, movementSpeed * deltaTime * 60);
+        // Update gaze timer and handle movement
+        if (vrEnabled && deviceOrientationEnabled) {
+            checkGazeForMovement();
+            if (isMoving) {
+                movePlayerForward();
             }
         }
 
-        // Update position display
-        document.getElementById('pos-x').textContent = camera.position.x.toFixed(2);
-        document.getElementById('pos-y').textContent = camera.position.y.toFixed(2);
-        document.getElementById('pos-z').textContent = camera.position.z.toFixed(2);
-
-        // Render scene
-        if (vrEnabled && effect) {
+        // Render based on VR mode
+        if (vrEnabled) {
             effect.render(scene, camera);
         } else {
             renderer.render(scene, camera);
         }
     }
 
-    function setupControls() {
-        document.getElementById('toggleVR').addEventListener('click', toggleVR);
-        document.getElementById('requestGyro').addEventListener('click', requestGyroPermission);
-        document.getElementById('calibrate').addEventListener('click', calibrateOrientation);
-        document.getElementById('toggleFullscreen').addEventListener('click', toggleFullscreen);
-        document.getElementById('resetView').addEventListener('click', resetView);
+    // --- Device Orientation and Camera Control ---
 
-        // Movement control listeners (NEW)
-        document.getElementById('moveForward').addEventListener('touchstart', () => { moveForward = true; });
-        document.getElementById('moveForward').addEventListener('touchend', () => { moveForward = false; });
-        document.getElementById('moveBackward').addEventListener('touchstart', () => { moveBackward = true; });
-        document.getElementById('moveBackward').addEventListener('touchend', () => { moveBackward = false; });
-        document.getElementById('moveLeft').addEventListener('touchstart', () => { moveLeft = true; });
-        document.getElementById('moveLeft').addEventListener('touchend', () => { moveLeft = false; });
-        document.getElementById('moveRight').addEventListener('touchstart', () => { moveRight = true; });
-        document.getElementById('moveRight').addEventListener('touchend', () => { moveRight = false; });
-
-        // For desktop testing with keyboard (optional)
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'w' || e.key === 'ArrowUp') moveForward = true;
-            if (e.key === 's' || e.key === 'ArrowDown') moveBackward = true;
-            if (e.key === 'a' || e.key === 'ArrowLeft') moveLeft = true;
-            if (e.key === 'd' || e.key === 'ArrowRight') moveRight = true;
-        });
-        document.addEventListener('keyup', (e) => {
-            if (e.key === 'w' || e.key === 'ArrowUp') moveForward = false;
-            if (e.key === 's' || e.key === 'ArrowDown') moveBackward = false;
-            if (e.key === 'a' || e.key === 'ArrowLeft') moveLeft = false;
-            if (e.key === 'd' || e.key === 'ArrowRight') moveRight = false;
-        });
+    function normalizeAngle(angle) {
+        // Normalize angle to be between -180 and 180 (or 0 and 360)
+        // This function attempts to keep angles within a continuous range.
+        // For calibration, ensure it returns a consistent range.
+        return angle % 360;
     }
 
-    function requestGyroPermission() {
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-            DeviceOrientationEvent.requestPermission()
-                .then(permissionState => {
-                    if (permissionState === 'granted') {
-                        window.addEventListener('deviceorientation', onDeviceOrientation, true);
-                        deviceOrientationEnabled = true;
-                        updateGyroStatus(true);
-                        console.log('✅ Accès gyroscope accordé.');
-                    } else {
-                        deviceOrientationEnabled = false;
-                        updateGyroStatus(false);
-                        console.warn('❌ Accès gyroscope refusé.');
-                        alert('Accès au gyroscope refusé. Le contrôle de la vue VR ne fonctionnera pas.');
-                    }
-                })
-                .catch(console.error);
-        } else {
-            // handle regular non-iOS 13+ devices
-            window.addEventListener('deviceorientation', onDeviceOrientation, true);
-            deviceOrientationEnabled = true;
-            updateGyroStatus(true);
-            console.log('✅ Accès gyroscope activé (mode non-iOS 13+).');
-        }
+    function lerp(start, end, amt) {
+        return (1 - amt) * start + amt * end;
     }
 
     function onDeviceOrientation(event) {
         if (!deviceOrientationEnabled) return;
 
+        // Check if event has valid data
         if (event.alpha === null || event.beta === null || event.gamma === null) {
+            console.warn("DeviceOrientationEvent received null values.");
             return;
         }
 
-        const newAlpha = event.alpha || 0;
-        const newBeta = event.beta || 0;
-        const newGamma = event.gamma || 0;
+        const newAlpha = event.alpha;
+        const newBeta = event.beta;
+        const newGamma = event.gamma;
 
-        // Always update raw data for smoothing
-        orientationData.alpha = newAlpha;
-        orientationData.beta = newBeta;
-        orientationData.gamma = newGamma;
+        // Apply smoothing to all axes
+        orientationData.smoothAlpha = lerp(orientationData.smoothAlpha, newAlpha, SMOOTHING_FACTOR);
+        orientationData.smoothBeta = lerp(orientationData.smoothBeta, newBeta, SMOOTHING_FACTOR);
+        orientationData.smoothGamma = lerp(orientationData.smoothGamma, newGamma, SMOOTHING_FACTOR);
 
-        // Apply smoothing directly to the target values
-        orientationData.smoothAlpha = lerp(orientationData.smoothAlpha, orientationData.alpha, SMOOTHING_FACTOR);
-        orientationData.smoothBeta = lerp(orientationData.smoothBeta, orientationData.beta, SMOOTHING_FACTOR);
-        orientationData.smoothGamma = lerp(orientationData.smoothGamma, orientationData.gamma, SMOOTHING_FACTOR);
-
-        // Update camera only if significant movement or always if needed (simplified for this update)
+        // We will *always* call updateCameraFromOrientation to ensure the camera
+        // rotation (yaw) is updated, but movement is conditional on gaze.
         updateCameraFromOrientation();
     }
 
     function updateCameraFromOrientation() {
         if (!deviceOrientationEnabled) return;
 
-        // Apply the calibration offsets
+        // Apply calibration offsets
         let alpha = orientationData.smoothAlpha - orientationCalibration.alpha;
-        let gamma = orientationData.smoothGamma - orientationCalibration.gamma; // Beta (pitch) is intentionally ignored for head tracking
+        let beta = orientationData.smoothBeta - orientationCalibration.beta;
+        let gamma = orientationData.smoothGamma - orientationCalibration.gamma;
 
         // Normalize angles
         alpha = normalizeAngle(alpha);
-        // gamma = Math.max(-90, Math.min(90, gamma)); // Clamping gamma for roll, uncomment if needed for precise control
+        beta = Math.max(-90, Math.min(90, beta)); // Clamp beta
+        gamma = Math.max(-90, Math.min(90, gamma)); // Clamp gamma
 
         // Convert to radians
         const alphaRad = THREE.MathUtils.degToRad(alpha);
+        // const betaRad = THREE.MathUtils.degToRad(beta); // No longer used for pitch
         const gammaRad = THREE.MathUtils.degToRad(gamma);
 
-        // Camera rotation order YXZ: Yaw (Y), Pitch (X), Roll (Z)
+        // Set camera rotation order
         camera.rotation.order = 'YXZ';
 
-        // Yaw (left/right) - This should still work well
+        // --- Only apply YAW (left/right) ---
         camera.rotation.y = alphaRad;
 
-        // Pitch (up/down) - DISABLED: No longer updated by gyroscope
-        // camera.rotation.x = -betaRad; // This line is removed for this feature request
+        // --- DISABLE PITCH (up/down) ---
+        camera.rotation.x = 0; // Explicitly set pitch to zero
 
-        // Roll (side-to-side tilt) - Keep it, but keep it minimal to avoid discomfort
-        // You might want to adjust the multiplier or even set it to 0 if it's still weird.
-        camera.rotation.z = -gammaRad * 0.2; // Keep a small, potentially negated roll
+        // --- Minimize/Disable ROLL (side-to-side tilt) ---
+        // Roll can still be disorienting. Setting it to 0 or a very small value.
+        camera.rotation.z = -gammaRad * 0.05; // Greatly reduced roll, potentially negated. Set to 0 for no roll.
     }
 
     function calibrateOrientation() {
-        // Set current smoothed orientation as the new calibration offset
-        orientationCalibration.alpha = orientationData.smoothAlpha;
-        orientationCalibration.beta = orientationData.smoothBeta; // Even if not used for pitch, good to reset
-        orientationCalibration.gamma = orientationData.smoothGamma;
-        console.log('✅ Calibré:', orientationCalibration);
-        // Immediately apply the new calibration
-        updateCameraFromOrientation();
-        alert('Vue calibrée !');
-    }
-
-    function resetView() {
-        // Reset camera rotation to its default forward state
-        camera.rotation.set(0, 0, 0); // Reset all rotations
-        camera.position.set(0, 1.6, 0); // Reset position as well, as movement is added
-
-        // Re-calibrate to current device orientation if gyroscope is active
         if (deviceOrientationEnabled) {
-            calibrateOrientation(); // This will make the current view "forward"
+            // Store current smoothed orientation as the calibration point
+            orientationCalibration.alpha = orientationData.smoothAlpha;
+            orientationCalibration.beta = orientationData.smoothBeta;
+            orientationCalibration.gamma = orientationData.smoothGamma;
+            console.log('🔄 Calibrage effectué:', orientationCalibration);
+        } else {
+            console.warn('Gyroscope non activé pour calibrer.');
         }
-        console.log('🔄 Vue recentrée.');
-        alert('Vue recentrée !');
     }
 
-    function lerp(a, b, t) {
-        return a + (b - a) * t;
+    // --- Gaze-Based Movement Functions ---
+
+    function checkGazeForMovement() {
+        // Set raycaster origin to camera position and direction to camera's forward
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // Vector2(0,0) is the center of the screen
+
+        // Intersect with the movementTarget
+        const intersects = raycaster.intersectObjects([movementTarget], false);
+
+        if (intersects.length > 0) {
+            // Gaze is on target
+            reticle.classList.add('gazing-ready');
+            gazeTimer += (1000 / 60); // Assuming ~60 FPS, add time in ms
+            if (gazeTimer >= GAZE_ACTIVATION_TIME) {
+                reticle.classList.add('active-gaze');
+                isMoving = true;
+            }
+        } else {
+            // Gaze is off target
+            reticle.classList.remove('gazing-ready');
+            reticle.classList.remove('active-gaze');
+            gazeTimer = 0;
+            isMoving = false;
+        }
     }
 
-    function normalizeAngle(angle) {
-        // Ensure angle stays within -180 to 180 degrees or similar range for consistency
-        angle = angle % 360;
-        if (angle > 180) angle -= 360;
-        if (angle < -180) angle += 360;
-        return angle;
+    function movePlayerForward() {
+        // Move the playerGroup forward relative to its current rotation
+        // The camera is a child, so it will move with the playerGroup.
+        const forwardVector = new THREE.Vector3(0, 0, -1); // Forward is -Z in Three.js default
+        forwardVector.applyQuaternion(playerGroup.quaternion); // Apply playerGroup's rotation to get global forward
+        playerGroup.position.addScaledVector(forwardVector, movementSpeed);
     }
 
-    // Status updates for UI
+    // --- UI and Fullscreen Controls ---
+
+    function requestDeviceOrientationPermission() {
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        deviceOrientationEnabled = true;
+                        updateGyroStatus(true);
+                        console.log('✅ Gyroscope : Autorisation accordée.');
+                    } else {
+                        deviceOrientationEnabled = false;
+                        updateGyroStatus(false);
+                        console.warn('❌ Gyroscope : Autorisation refusée.');
+                    }
+                    document.getElementById('request-gyro-permission').style.display = 'none'; // Hide button after request
+                })
+                .catch(error => {
+                    console.error('Erreur lors de la demande d\'autorisation du gyroscope:', error);
+                    updateGyroStatus(false);
+                });
+        } else {
+            // For non-iOS 13+ devices, deviceorientation event is usually available by default
+            deviceOrientationEnabled = true;
+            updateGyroStatus(true);
+            console.log('✅ Gyroscope : Disponible par défaut.');
+            document.getElementById('request-gyro-permission').style.display = 'none'; // Hide button
+        }
+    }
+
+    function checkDeviceOrientationSupport() {
+        if (window.DeviceOrientationEvent) {
+            // Check if requestPermission is needed (iOS 13+)
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                document.getElementById('request-gyro-permission').style.display = 'block';
+                deviceOrientationEnabled = false; // Will be set to true on permission granted
+            } else {
+                // Not iOS 13+, so events should fire directly
+                deviceOrientationEnabled = true;
+                updateGyroStatus(true);
+            }
+        } else {
+            console.warn('❌ DeviceOrientationEvent non supporté sur cet appareil/navigateur.');
+            updateGyroStatus(false, true); // Mark as error
+            document.getElementById('request-gyro-permission').style.display = 'none';
+        }
+    }
+
+    function updateGyroStatus(status, error = false) {
+        const gyroStatusCircle = document.getElementById('gyro-status');
+        gyroStatusCircle.classList.remove('active', 'error');
+        if (status) {
+            gyroStatusCircle.classList.add('active');
+        } else if (error) {
+            gyroStatusCircle.classList.add('error');
+        }
+    }
+
+    function toggleVR() {
+        vrEnabled = !vrEnabled;
+        updateVRStatus(vrEnabled);
+        onWindowResize(); // Re-render in case of VR mode change
+
+        // Reset camera position when toggling VR
+        // This ensures the player starts from a known point in VR mode
+        playerGroup.position.set(0, 0, 0);
+        camera.rotation.set(0, 0, 0); // Reset camera rotation
+        calibrateOrientation(); // Recalibrate for the new VR mode view
+        console.log('⚡ Mode VR:', vrEnabled ? 'Activé' : 'Désactivé');
+    }
+
     function updateVRStatus(status) {
-        vrEnabled = status;
-        document.getElementById('status-vr').textContent = status ? 'Activé' : 'Désactivé';
-        document.getElementById('toggleVR').textContent = status ? 'Désactiver VR' : 'Activer VR';
-    }
-
-    function updateGyroStatus(status) {
-        deviceOrientationEnabled = status;
-        document.getElementById('status-gyro').textContent = status ? 'Disponible' : 'Non disponible';
-    }
-
-    function updateFullscreenStatus() {
-        const fullscreenStatus = document.fullscreenElement !== null;
-        document.getElementById('status-fullscreen').textContent = fullscreenStatus ? 'Activé' : 'Désactivé';
-        document.getElementById('toggleFullscreen').textContent = fullscreenStatus ? 'Quitter Plein Écran' : 'Plein Écran';
+        const vrStatusCircle = document.getElementById('vr-status');
+        vrStatusCircle.classList.remove('active');
+        if (status) {
+            vrStatusCircle.classList.add('active');
+        }
+        document.getElementById('toggle-vr').textContent = status ? 'Désactiver VR' : 'Activer VR';
     }
 
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().then(() => {
+                fullscreenEnabled = true;
                 updateFullscreenStatus();
+                console.log('Full screen activé.');
             }).catch(err => {
-                console.error(`Erreur de plein écran: ${err.message}`);
+                console.error(`Erreur plein écran: ${err.message} (${err.name})`);
             });
         } else {
             document.exitFullscreen().then(() => {
+                fullscreenEnabled = false;
                 updateFullscreenStatus();
-            }).catch(err => {
-                console.error(`Erreur de sortie de plein écran: ${err.message}`);
+                console.log('Full screen désactivé.');
             });
         }
     }
 
-    function toggleVR() {
+    function updateFullscreenStatus() {
+        fullscreenEnabled = document.fullscreenElement !== null;
+        const fullscreenStatusCircle = document.getElementById('fullscreen-status');
+        fullscreenStatusCircle.classList.remove('active');
+        if (fullscreenEnabled) {
+            fullscreenStatusCircle.classList.add('active');
+        }
+        document.getElementById('toggle-fullscreen').textContent = fullscreenEnabled ? 'Quitter Plein Écran' : 'Plein Écran';
+    }
+
+    function animateEffect() {
         if (vrEnabled) {
-            // Exit VR
-            if (effect) {
-                effect.dispose(); // Dispose the StereoEffect
-                effect = null;
-            }
-            // Reset renderer to single view
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            updateVRStatus(false);
-            console.log('Deactivated VR mode.');
-            // Re-detect orientation as aspect ratio changes
-            detectScreenOrientation();
-
+            effect.render(scene, camera);
+            requestAnimationFrame(animateEffect);
         } else {
-            // Enter VR
-            // Check if device orientation is enabled, if not, prompt
-            if (!deviceOrientationEnabled) {
-                alert("Le gyroscope n'est pas activé. Le mode VR fonctionnera, mais le contrôle de la vue sera limité au mouvement (pas de suivi de la tête). Veuillez activer le gyroscope.");
-                // You might want to call requestGyroPermission() here or guide the user.
-            }
-
-            if (!effect) {
-                // Initialize StereoEffect outside init to allow toggling
-                effect = new THREE.StereoEffect(renderer);
-                effect.setSize(window.innerWidth, window.innerHeight);
-                updateVRStatus(true);
-                console.log('Activated VR mode.');
-            }
-            // Re-detect orientation as aspect ratio changes
-            detectScreenOrientation();
-            // Start rendering with effect
-            // RequestAnimationFrame is already called in animate, just ensure effect.render is used.
-            // No need for a separate animateEffect. Just animate will handle it.
+            // Only render once if VR is disabled, then stop the loop for effect
+            // scene.remove(effect); // Effect is not added to scene, it uses the renderer
+            // geometry.dispose(); // These are from a previous context, not directly used here
+            // material.dispose(); // Same here
         }
     }
 
@@ -525,14 +536,12 @@
                 screenOrientation = 'portrait';
                 console.log('📱 Orientation: portrait');
                 document.getElementById('orientation-warning').style.display = 'flex';
-                document.getElementById('current-orientation').textContent = 'Portrait';
             }
         } else {
             if (screenOrientation !== 'landscape') {
                 screenOrientation = 'landscape';
                 console.log('📱 Orientation: paysage');
                 document.getElementById('orientation-warning').style.display = 'none';
-                document.getElementById('current-orientation').textContent = 'Paysage';
             }
         }
     }
@@ -540,10 +549,13 @@
     function onWindowResize() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        if (effect) { // Also resize StereoEffect if active
+
+        if (vrEnabled) {
             effect.setSize(window.innerWidth, window.innerHeight);
+        } else {
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
+
         console.log('📱 Redimensionnement:', window.innerWidth, 'x', window.innerHeight);
 
         // Détecter l'orientation
