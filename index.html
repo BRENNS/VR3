@@ -237,17 +237,17 @@
 
         #score-display {
             position: absolute;
-            top: 60px; /* Below info box */
-            left: 10px;
-            color: white;
+            top: 60px;
+            right: 10px;
             z-index: 100;
-            background: rgba(0,0,0,0.9);
-            padding: 10px 15px;
-            border-radius: 10px;
-            font-size: 16px;
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: all 0.3s ease;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
     </style>
 </head>
@@ -293,6 +293,10 @@
     </div>
 </div>
 
+<div id="score-display">
+    <span>Score: <span id="score-value">0</span></span>
+</div>
+
 <div id="info">
     <h3>🚀 VR Mobile - Expérience Immersive</h3>
     <div style="margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px;">
@@ -303,15 +307,12 @@
             <li>Bougez la tête pour regarder autour</li>
             <li>En mode VR, touchez l'écran pour démarrer/arrêter le mouvement</li>
             <li>Tapez deux fois pour quitter le mode VR</li>
+            <li>Collectez des objets pour augmenter votre vitesse et votre taille !</li>
         </ul>
     </div>
     <div style="font-size: 11px; opacity: 0.7;">
         Optimisé pour iPhone et Android
     </div>
-</div>
-
-<div id="score-display">
-    Collectés: <span id="collected-count">0</span>
 </div>
 
 <div id="controls">
@@ -339,7 +340,6 @@
     let cubes = [], spheres = [], particles = [];
     let raycaster = new THREE.Raycaster();
     let clock = new THREE.Clock();
-    let mouse = new THREE.Vector2();
 
     // Variables VR et gyroscope améliorées
     let isVRMode = false;
@@ -366,15 +366,14 @@
         smoothGamma: 0
     };
 
-    // Paramètres de lissage
-    const SMOOTHING_FACTOR_ORIENTATION = 0.25; // For head rotation
-    const SMOOTHING_FACTOR_MOVEMENT = 0.1; // For camera position movement
-    const ORIENTATION_THRESHOLD = 0.2;
+    // Paramètres de lissage pour les mouvements de la caméra
+    const SMOOTHING_FACTOR = 0.25; // Facteur de lissage pour le gyroscope
+    const ORIENTATION_THRESHOLD = 0.05; // Seuil pour appliquer les mises à jour d'orientation (réduit les mouvements brusques)
 
     // Variables de mouvement automatique en VR
     let isAutoMoving = false;
-    const MOVEMENT_SPEED = 0.08; // Adjusted for smoother default movement
-    const PLAYER_HEIGHT = 1.6; // Initial player height
+    let movementSpeed = 0.1; // Vitesse de déplacement initiale
+    const MOVEMENT_SPEED_INCREMENT = 0.02; // Augmentation de vitesse par objet collecté
 
     // Variables pour l'effet du sol
     let floorMesh;
@@ -382,6 +381,11 @@
     let lastCameraPosition = new THREE.Vector3();
     const STEP_DISTANCE_THRESHOLD = 1.0;
     const FLOOR_EFFECT_DURATION = 3000;
+
+    // Player attributes
+    let playerScore = 0;
+    let playerHeight = 0.5; // Initial player height
+    const PLAYER_HEIGHT_INCREMENT = 0.1; // How much player grows per collected item
 
     // Matériaux et couleurs améliorés
     const colors = [
@@ -394,33 +398,22 @@
     let frameCount = 0;
     let lastTime = performance.now();
 
-    // Collision variables
-    const PLAYER_RADIUS = 0.5; // Approximate radius of the player/camera
-    const OBJECT_PUSH_FORCE = 0.05; // Reduced for smoother pushes
-    const OBJECT_DAMPING = 0.95; // Increased damping for faster stop
-
-    let movableObjects = []; // Array to hold objects that can be pushed AND collected
-
-    // Collectible variables
-    let collectedCount = 0;
-    const MAX_CUBES = 20;
-    const MAX_SPHERES = 15;
-    const GROW_FACTOR_PER_COLLECTIBLE = 0.02; // How much player grows per collectible
-    let currentScale = 1.0;
-
     init();
     animate();
 
     function init() {
         console.log('🚀 Initialisation de l\'expérience VR...');
 
+        // Scène avec améliorations
         scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0x000015, 30, 150);
 
+        // Caméra optimisée pour VR mobile
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, PLAYER_HEIGHT, 5); // Player height
+        camera.position.set(0, playerHeight, 5); // Set initial camera height based on playerHeight
         lastCameraPosition.copy(camera.position);
 
+        // Renderer avec optimisations
         renderer = new THREE.WebGLRenderer({
             antialias: window.devicePixelRatio < 2,
             powerPreference: "high-performance",
@@ -435,25 +428,27 @@
 
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
+        // Configuration des contrôles
         setupControls();
         setupDeviceOrientation();
         setupFullscreenHandlers();
+
+        // Éclairage amélioré
         setupLighting();
+
+        // Création du monde
+        createFloatingCubes();
+        createFloatingSpheres();
         createParticleSystem();
         createEnvironment();
 
-        // Initial creation of cubes and spheres
-        for (let i = 0; i < MAX_CUBES; i++) {
-            createCube(true); // true to indicate initial creation
-        }
-        for (let i = 0; i < MAX_SPHERES; i++) {
-            createSphere(true); // true to indicate initial creation
-        }
-
+        // Événements
         setupEventListeners();
+
+        // Vérification des permissions
         checkGyroPermission();
 
-        updateScoreDisplay(); // Initialize score display
+        updateScoreDisplay(); // Initial display of score
 
         console.log('✅ Initialisation terminée');
     }
@@ -488,9 +483,11 @@
     }
 
     function setupLighting() {
+        // Éclairage ambiant
         const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
         scene.add(ambientLight);
 
+        // Lumière directionnelle avec ombres
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(10, 10, 5);
         directionalLight.castShadow = true;
@@ -498,6 +495,7 @@
         directionalLight.shadow.mapSize.height = 1024;
         scene.add(directionalLight);
 
+        // Lumières colorées animées
         const light1 = new THREE.PointLight(0xff6b35, 1, 25);
         light1.position.set(-8, 6, -8);
         scene.add(light1);
@@ -516,6 +514,7 @@
             typeof DeviceOrientationEvent.requestPermission === 'function') {
             document.getElementById('gyro-permission').style.display = 'flex';
         } else if (window.DeviceOrientationEvent) {
+            // Android ou navigateurs qui ne nécessitent pas de permission explicite
             setupDeviceOrientation();
             document.getElementById('gyro-permission').style.display = 'none';
         } else {
@@ -578,22 +577,16 @@
         const newBeta = event.beta || 0;
         const newGamma = event.gamma || 0;
 
-        orientationData.alpha = newAlpha;
-        orientationData.beta = newBeta;
-        orientationData.gamma = newGamma;
+        // Apply smoothing to raw sensor data
+        orientationData.smoothAlpha = lerp(orientationData.smoothAlpha, newAlpha, SMOOTHING_FACTOR);
+        orientationData.smoothBeta = lerp(orientationData.smoothBeta, newBeta, SMOOTHING_FACTOR);
+        orientationData.smoothGamma = lerp(orientationData.smoothGamma, newGamma, SMOOTHING_FACTOR);
 
-        orientationData.smoothAlpha = lerp(orientationData.smoothAlpha, orientationData.alpha, SMOOTHING_FACTOR_ORIENTATION);
-        orientationData.smoothBeta = lerp(orientationData.smoothBeta, orientationData.beta, SMOOTHING_FACTOR_ORIENTATION);
-        orientationData.smoothGamma = lerp(orientationData.smoothGamma, orientationData.gamma, SMOOTHING_FACTOR_ORIENTATION);
-
-        // Only update camera if significant movement, or always apply smoothing if it's small
+        // Only update camera if there's significant change (reduces jitters)
         if (Math.abs(newAlpha - orientationData.smoothAlpha) > ORIENTATION_THRESHOLD ||
             Math.abs(newBeta - orientationData.smoothBeta) > ORIENTATION_THRESHOLD ||
             Math.abs(newGamma - orientationData.smoothGamma) > ORIENTATION_THRESHOLD) {
 
-            updateCameraFromOrientation();
-        } else {
-            // Still apply smoothing even for small movements to keep it fluid
             updateCameraFromOrientation();
         }
     }
@@ -612,13 +605,12 @@
         gamma = Math.max(-90, Math.min(90, gamma));
 
         const alphaRad = THREE.MathUtils.degToRad(alpha);
-        const betaRad = THREE.MathUtils.degToRad(orientationData.smoothBeta - orientationCalibration.beta);
         const gammaRad = THREE.MathUtils.degToRad(gamma);
 
         camera.rotation.order = 'YXZ';
         camera.rotation.y = alphaRad;
-        camera.rotation.x = betaRad;
-        camera.rotation.z = -gammaRad * 0.2; // Keep some roll effect
+        camera.rotation.x = THREE.MathUtils.degToRad(orientationData.smoothBeta - orientationCalibration.beta); // Use beta for X-axis rotation (pitch)
+        camera.rotation.z = -gammaRad * 0.2;
     }
 
     function normalizeAngle(angle) {
@@ -634,9 +626,9 @@
         }
 
         orientationCalibration = {
-            alpha: orientationData.alpha,
-            beta: orientationData.beta,
-            gamma: orientationData.gamma,
+            alpha: orientationData.smoothAlpha,
+            beta: orientationData.smoothBeta,
+            gamma: orientationData.smoothGamma,
             isCalibrated: true
         };
 
@@ -659,7 +651,6 @@
         const controls = document.getElementById('controls');
         const vrOverlay = document.getElementById('vrOverlay');
         const movementIndicator = document.getElementById('movement-indicator');
-        const scoreDisplay = document.getElementById('score-display');
 
         isVRMode = !isVRMode;
 
@@ -671,7 +662,6 @@
             controls.style.display = 'none';
             vrOverlay.style.display = 'block';
             movementIndicator.style.display = 'block';
-            scoreDisplay.style.display = 'block'; // Show score in VR
 
             if (!isFullscreen) {
                 requestFullscreen();
@@ -691,7 +681,6 @@
             controls.style.display = 'flex';
             vrOverlay.style.display = 'none';
             movementIndicator.style.display = 'none';
-            scoreDisplay.style.display = 'none'; // Hide score in normal mode
 
             renderer.setScissorTest(false);
             renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
@@ -702,6 +691,20 @@
         updateVRStatus(isVRMode);
     }
 
+    function updateMovementIndicator() {
+        const indicator = document.getElementById('movement-indicator');
+        if (indicator) {
+            if (isAutoMoving) {
+                indicator.innerHTML = '🚶 Mouvement ON';
+                indicator.style.opacity = 1;
+            } else {
+                indicator.innerHTML = '🛑 Mouvement OFF';
+                indicator.style.opacity = 0.7;
+            }
+            indicator.style.display = 'block';
+        }
+    }
+
     function renderStereo() {
         if (!isVRMode) {
             renderer.render(scene, camera);
@@ -710,7 +713,7 @@
 
         const width = window.innerWidth;
         const height = window.innerHeight;
-        const eyeSeparation = 0.032;
+        const eyeSeparation = 0.032; // Standard eye separation
 
         renderer.setScissorTest(true);
 
@@ -732,7 +735,7 @@
 
     function resetCameraView() {
         console.log('🎯 Remise à zéro de la vue');
-        camera.position.set(0, PLAYER_HEIGHT * currentScale, 5); // Reset to initial player height, scaled
+        camera.position.set(0, playerHeight, 5); // Reset to current player height
         camera.rotation.set(0, 0, 0);
         calibrateOrientation();
     }
@@ -798,115 +801,94 @@
         }
     }
 
-    function createCube(isInitial = false) {
-        const size = Math.random() * 1.5 + 0.5;
-        const geometry = new THREE.BoxGeometry(size, size, size);
+    function updateScoreDisplay() {
+        document.getElementById('score-value').textContent = playerScore;
+    }
 
-        const material = new THREE.MeshPhongMaterial({
-            color: colors[Math.floor(Math.random() * colors.length)],
-            transparent: true,
-            opacity: 0.8,
-            shininess: 100
-        });
+    function createFloatingCubes() {
+        for (let i = 0; i < 20; i++) {
+            const size = Math.random() * 1.5 + 1.0;
+            const geometry = new THREE.BoxGeometry(size, size, size);
 
-        const cube = new THREE.Mesh(geometry, material);
-        cube.castShadow = true;
-        cube.receiveShadow = true;
+            const material = new THREE.MeshPhongMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                transparent: true,
+                opacity: 0.8,
+                shininess: 100
+            });
 
-        cube.position.set(
-            (Math.random() - 0.5) * 40,
-            size / 2, // Place on the ground
-            (Math.random() - 0.5) * 40
-        );
+            const cube = new THREE.Mesh(geometry, material);
+            cube.castShadow = true;
+            cube.receiveShadow = true;
 
-        // Ensure new object doesn't spawn too close to camera
-        const minSpawnDistance = 5;
-        while (camera.position.distanceTo(cube.position) < minSpawnDistance) {
+            // Place objects at ground level (y slightly above 0)
             cube.position.set(
                 (Math.random() - 0.5) * 40,
-                size / 2,
+                size / 2, // Half of its size to sit on the floor
                 (Math.random() - 0.5) * 40
             );
+
+            cube.rotation.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI
+            );
+
+            cube.userData = {
+                originalColor: material.color.getHex(),
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.02,
+                    y: (Math.random() - 0.5) * 0.02,
+                    z: (Math.random() - 0.5) * 0.02
+                },
+                floatSpeed: Math.random() * 0.02 + 0.01,
+                floatOffset: Math.random() * Math.PI * 2,
+                originalPosition: cube.position.clone(),
+                type: 'collectible' // Identify as collectible
+            };
+
+            cubes.push(cube);
+            scene.add(cube);
         }
-
-
-        cube.rotation.set(
-            Math.random() * Math.PI,
-            Math.random() * Math.PI,
-            Math.random() * Math.PI
-        );
-
-        cube.userData = {
-            originalColor: material.color.getHex(),
-            rotationSpeed: {
-                x: (Math.random() - 0.5) * 0.02,
-                y: (Math.random() - 0.5) * 0.02,
-                z: (Math.random() - 0.5) * 0.02
-            },
-            isMovable: true,
-            isCollectible: true, // Mark as collectible
-            velocity: new THREE.Vector3(), // For collision response
-            type: 'cube'
-        };
-
-        cubes.push(cube);
-        movableObjects.push(cube);
-        scene.add(cube);
     }
 
-    function createSphere(isInitial = false) {
-        const radius = Math.random() * 1.2 + 0.3;
-        const geometry = new THREE.SphereGeometry(radius, 16, 16);
+    function createFloatingSpheres() {
+        for (let i = 0; i < 15; i++) {
+            const radius = Math.random() * 1.0 + 0.7; // Smaller spheres
+            const geometry = new THREE.SphereGeometry(radius, 16, 16);
 
-        const material = new THREE.MeshPhongMaterial({
-            color: colors[Math.floor(Math.random() * colors.length)],
-            transparent: true,
-            opacity: 0.7,
-            emissive: colors[Math.floor(Math.random() * colors.length)],
-            emissiveIntensity: 0.2,
-            shininess: 150
-        });
+            const material = new THREE.MeshPhongMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                transparent: true,
+                opacity: 0.7,
+                emissive: colors[Math.floor(Math.random() * colors.length)],
+                emissiveIntensity: 0.2,
+                shininess: 150
+            });
 
-        const sphere = new THREE.Mesh(geometry, material);
-        sphere.castShadow = true;
-        sphere.receiveShadow = true;
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
 
-        sphere.position.set(
-            (Math.random() - 0.5) * 35,
-            radius, // Place on the ground
-            (Math.random() - 0.5) * 35
-        );
-
-        // Ensure new object doesn't spawn too close to camera
-        const minSpawnDistance = 5;
-        while (camera.position.distanceTo(sphere.position) < minSpawnDistance) {
+            // Place objects at ground level
             sphere.position.set(
                 (Math.random() - 0.5) * 35,
-                radius,
+                radius, // Half of its size (radius) to sit on the floor
                 (Math.random() - 0.5) * 35
             );
-        }
 
-        sphere.userData = {
-            originalColor: material.color.getHex(),
-            originalEmissive: material.emissive.getHex(),
-            pulseSpeed: Math.random() * 0.05 + 0.02,
-            isMovable: true,
-            isCollectible: true, // Mark as collectible
-            velocity: new THREE.Vector3(), // For collision response
-            type: 'sphere'
-        };
+            sphere.userData = {
+                originalColor: material.color.getHex(),
+                originalEmissive: material.emissive.getHex(),
+                floatSpeed: Math.random() * 0.03 + 0.01,
+                floatOffset: Math.random() * Math.PI * 2,
+                pulseSpeed: Math.random() * 0.05 + 0.02,
+                originalPosition: sphere.position.clone(),
+                type: 'collectible' // Identify as collectible
+            };
 
-        spheres.push(sphere);
-        movableObjects.push(sphere);
-        scene.add(sphere);
-    }
-
-    function respawnObject(type) {
-        if (type === 'cube') {
-            createCube();
-        } else if (type === 'sphere') {
-            createSphere();
+            spheres.push(sphere);
+            scene.add(sphere);
         }
     }
 
@@ -923,7 +905,7 @@
             positions[i3 + 1] = Math.random() * 60;
             positions[i3 + 2] = (Math.random() - 0.5) * 120;
 
-            const color = new THREE.Color(colors[Math.floor(Math.random() * colors.length)]);
+            const color = new THREE.Color(0xffffff); // White particles
             colors[i3] = color.r;
             colors[i3 + 1] = color.g;
             colors[i3 + 2] = color.b;
@@ -946,6 +928,7 @@
     }
 
     function createEnvironment() {
+        // Sol avec grille améliorée
         const gridGeometry = new THREE.PlaneGeometry(120, 120, 60, 60);
         const gridMaterial = new THREE.MeshPhongMaterial({
             color: 0x333366,
@@ -963,6 +946,7 @@
         scene.add(floorMesh);
         originalFloorColor = new THREE.Color(0x333366);
 
+        // Ciel étoilé amélioré
         const starsGeometry = new THREE.BufferGeometry();
         const starPositions = new Float32Array(1500 * 3);
         const starColors = new Float32Array(1500 * 3);
@@ -998,37 +982,36 @@
     function setupEventListeners() {
         window.addEventListener('resize', onWindowResize);
 
-        let lastTouchTime = 0;
+        let lastTapTime = 0;
         window.addEventListener('touchend', (event) => {
             const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTouchTime;
+            const tapLength = currentTime - lastTapTime;
 
             if (isVRMode) {
-                // Double tap to exit VR
                 if (tapLength < 500 && tapLength > 0) {
+                    // Double tap to exit VR mode
                     toggleVRMode();
                 } else {
-                    // Single tap to start/stop movement
+                    // Single tap to toggle auto movement
                     isAutoMoving = !isAutoMoving;
                     updateMovementIndicator();
-
-                    // In VR, check for intersections for collection on single tap
-                    checkIntersection(event);
                 }
             } else {
-                // Normal behavior (click/tap) if not in VR mode
-                if (event.touches && event.touches.length === 1) {
-                    const touch = event.touches[0];
-                    mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
-                    mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
-                    checkIntersection(event); // Pass event to check click vs touch
-                } else if (!event.touches) { // For desktop mouse clicks
-                    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-                    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-                    checkIntersection(event); // Pass event
+                // If not in VR mode, allow object interaction (e.g., for testing on desktop)
+                if (event.changedTouches && event.changedTouches.length === 1) {
+                    const touch = event.changedTouches[0];
+                    checkIntersection(touch.clientX, touch.clientY);
+                } else if (!event.touches) { // For mouse clicks on desktop
+                    checkIntersection(event.clientX, event.clientY);
                 }
             }
-            lastTouchTime = currentTime;
+            lastTapTime = currentTime;
+        });
+
+        window.addEventListener('click', (event) => {
+            if (!isVRMode) { // Only allow click interaction outside VR mode
+                checkIntersection(event.clientX, event.clientY);
+            }
         });
 
         window.addEventListener('orientationchange', () => {
@@ -1056,75 +1039,26 @@
             lastTime = currentTime;
         }
 
-        // Apply object velocities and damping
-        movableObjects.forEach(object => {
-            if (object.userData.velocity && object.userData.velocity.lengthSq() > 0.0001) {
-                object.position.add(object.userData.velocity);
-                object.userData.velocity.multiplyScalar(OBJECT_DAMPING); // Apply damping
-
-                // Ensure objects stay on the ground
-                if (object.geometry.type === "BoxGeometry") {
-                    object.position.y = object.geometry.parameters.height / 2 * object.scale.y;
-                } else if (object.geometry.type === "SphereGeometry") {
-                    object.position.y = object.geometry.parameters.radius * object.scale.y;
-                }
-            }
-        });
-
-        // Mouvement automatique si activé et en mode VR
         if (isVRMode && isAutoMoving) {
             moveCameraForward();
         }
+
+        // Check for collisions with collectibles
+        checkCollisions();
 
         render();
     }
 
     function moveCameraForward() {
-        const oldCameraPosition = camera.position.clone();
-
         const direction = new THREE.Vector3();
         camera.getWorldDirection(direction);
-        direction.y = 0;
+        direction.y = 0; // Keep movement on the horizontal plane
         direction.normalize();
 
-        const targetCameraPosition = camera.position.clone().addScaledVector(direction, MOVEMENT_SPEED);
+        camera.position.addScaledVector(direction, movementSpeed);
 
-        // Smoothly move camera towards target position
-        camera.position.lerp(targetCameraPosition, SMOOTHING_FACTOR_MOVEMENT);
-        camera.position.y = PLAYER_HEIGHT * currentScale; // Maintain scaled player height
-
-        // Check for collisions with movable objects
-        movableObjects.forEach(object => {
-            // Get effective radius for collision
-            let objectCollisionRadius;
-            if (object.geometry.type === "BoxGeometry") {
-                objectCollisionRadius = Math.sqrt(
-                    (object.geometry.parameters.width * object.scale.x / 2) ** 2 +
-                    (object.geometry.parameters.depth * object.scale.z / 2) ** 2
-                );
-            } else if (object.geometry.type === "SphereGeometry") {
-                objectCollisionRadius = object.geometry.parameters.radius * object.scale.x;
-            }
-
-            const distance = camera.position.distanceTo(object.position);
-            const combinedRadius = (PLAYER_RADIUS * currentScale) + objectCollisionRadius; // Player radius scales
-
-            if (distance < combinedRadius) {
-                const collisionNormal = camera.position.clone().sub(object.position).normalize();
-
-                // Push object away if it's movable
-                if (object.userData.isMovable) {
-                    const overlap = combinedRadius - distance;
-                    const pushVector = collisionNormal.clone().multiplyScalar(-overlap * OBJECT_PUSH_FORCE);
-                    object.userData.velocity.add(pushVector);
-                }
-
-                // Adjust camera position to prevent penetration
-                const cameraAdjust = collisionNormal.clone().multiplyScalar(combinedRadius - distance);
-                camera.position.add(cameraAdjust);
-            }
-        });
-
+        // Ensure camera stays at the current playerHeight
+        camera.position.y = playerHeight;
 
         // Check for "step" to trigger floor effect
         if (camera.position.distanceTo(lastCameraPosition) > STEP_DISTANCE_THRESHOLD) {
@@ -1132,7 +1066,6 @@
             lastCameraPosition.copy(camera.position);
         }
     }
-
 
     function triggerFloorEffect(position) {
         if (!floorMesh) return;
@@ -1216,7 +1149,6 @@
             const positions = risingParticles.geometry.attributes.position.array;
             const velocities = risingParticles.geometry.attributes.velocity.array;
             const lifetimes = risingParticles.geometry.attributes.lifetime.array;
-            const colors = risingParticles.geometry.attributes.color.array;
 
             let particlesAlive = 0;
 
@@ -1231,7 +1163,7 @@
                     positions[i3 + 2] += velocities[i3 + 2];
 
                     const fadeProgress = age / particleLifetime;
-                    material.opacity = 1.0 - fadeProgress;
+                    risingParticles.material.opacity = 1.0 - fadeProgress;
                     particlesAlive++;
                 } else {
                     positions[i3] = positions[i3 + 1] = positions[i3 + 2] = 10000;
@@ -1239,7 +1171,6 @@
             }
 
             risingParticles.geometry.attributes.position.needsUpdate = true;
-            risingParticles.material.opacity = material.opacity;
 
             if (particlesAlive > 0) {
                 requestAnimationFrame(animateRisingParticles);
@@ -1258,11 +1189,10 @@
 
         cubes.forEach((cube) => {
             const userData = cube.userData;
-            if (userData.velocity.lengthSq() < 0.01) {
-                cube.rotation.x += userData.rotationSpeed.x;
-                cube.rotation.y += userData.rotationSpeed.y;
-                cube.rotation.z += userData.rotationSpeed.z;
-            }
+            cube.rotation.x += userData.rotationSpeed.x;
+            cube.rotation.y += userData.rotationSpeed.y;
+            cube.rotation.z += userData.rotationSpeed.z;
+            // Cubes are fixed at ground level, no floating
         });
 
         spheres.forEach((sphere) => {
@@ -1271,6 +1201,7 @@
             sphere.scale.setScalar(scale);
             const emissiveIntensity = 0.1 + Math.sin(time * userData.pulseSpeed * 2) * 0.1;
             sphere.material.emissiveIntensity = emissiveIntensity;
+            // Spheres are fixed at ground level, no floating
         });
 
         particles.forEach(particleSystem => {
@@ -1285,91 +1216,147 @@
         renderStereo();
     }
 
-    // Modified checkIntersection for collecting objects
-    function checkIntersection(event) {
-        // If not in VR mode, or if event is a double tap (which means exiting VR), don't collect
-        if (!isVRMode || (event && event.touches && event.touches.length > 1)) {
-            // For desktop clicks or non-VR single taps, still allow highlights but no collection
-            // if (event.touches && event.touches.length === 1) { // desktop
-            //     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            //     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-            // } else if (!event.touches) { // mobile
-            //     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            //     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-            // }
-            // raycaster.setFromCamera(mouse, camera);
-            // const intersects = raycaster.intersectObjects([...cubes, ...spheres]);
-            // if (intersects.length > 0) {
-            //     const object = intersects[0].object;
-            //     createSelectionEffect(object.position); // Still show highlight
-            // }
-            return; // Exit if not in VR or double tap
-        }
+    // Modified checkIntersection to handle clicks/taps for desktop, but not used in VR
+    function checkIntersection(clientX, clientY) {
+        const mouse = new THREE.Vector2();
+        mouse.x = (clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(clientY / window.innerHeight) * 2 + 1;
 
-        // In VR mode, raycast from center of screen (or a slightly offset point for VR look-at interaction)
-        // For simplicity, we can use a fixed point in the camera's view direction or just a small offset
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // Raycast from center of camera view
+        raycaster.setFromCamera(mouse, camera);
 
-        const intersects = raycaster.intersectObjects(movableObjects); // Only check movable objects
+        const collectibles = [...cubes, ...spheres];
+        const intersects = raycaster.intersectObjects(collectibles);
 
         if (intersects.length > 0) {
             const object = intersects[0].object;
-
-            if (object.userData.isCollectible) {
-                // Collect the object
+            if (object.userData.type === 'collectible') {
                 collectObject(object);
+            }
+        }
+    }
+    const playerSphereGeo = new THREE.SphereGeometry(playerHeight * 0.3, 16, 16);
+    const playerSphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+    const playerSphereMesh = new THREE.Mesh(playerSphereGeo, playerSphereMat);
+    scene.add(playerSphereMesh);
+
+    function checkCollisions() {
+        // Only check collisions if auto-moving in VR mode
+        if (!isVRMode || !isAutoMoving) return;
+
+        const playerBoundingSphere = new THREE.Sphere(camera.position, playerHeight * 0.3); // Adjust multiplier as needed
+
+        const allCollectibles = [...cubes, ...spheres];
+
+        for (let i = 0; i < allCollectibles.length; i++) {
+            const object = allCollectibles[i];
+            if (object.userData.type === 'collectible') {
+                const objectBoundingSphere = new THREE.Sphere();
+                new THREE.Box3().setFromObject(object).getBoundingSphere(objectBoundingSphere);
+
+                // Reduce object bounding sphere radius slightly for easier collection
+                objectBoundingSphere.radius *= 0.8;
+
+                if (playerBoundingSphere.intersectsSphere(objectBoundingSphere)) {
+                    collectObject(object);
+                    break; // Only collect one object per frame to avoid issues
+                }
             }
         }
     }
 
     function collectObject(object) {
-        console.log('Collected:', object.userData.type);
+        // Play a collection sound or visual effect
+        createSelectionEffect(object.position);
 
-        // Remove from scene
+        // Remove object from scene and its respective array
         scene.remove(object);
-
-        // Remove from tracking arrays
-        const cubeIndex = cubes.indexOf(object);
-        if (cubeIndex > -1) {
-            cubes.splice(cubeIndex, 1);
-        }
-        const sphereIndex = spheres.indexOf(object);
-        if (sphereIndex > -1) {
-            spheres.splice(sphereIndex, 1);
-        }
-        const movableIndex = movableObjects.indexOf(object);
-        if (movableIndex > -1) {
-            movableObjects.splice(movableIndex, 1);
+        if (object.geometry.type === 'BoxGeometry') {
+            cubes = cubes.filter(c => c !== object);
+        } else if (object.geometry.type === 'SphereGeometry') {
+            spheres = spheres.filter(s => s !== object);
         }
 
-        // Dispose geometry and material to free up memory
-        if (object.geometry) object.geometry.dispose();
-        if (object.material) object.material.dispose();
-
-        // Increment score
-        collectedCount++;
+        // Increase score
+        playerScore += 1;
         updateScoreDisplay();
 
-        // Grow player
-        growPlayer();
+        // Increase speed
+        movementSpeed += MOVEMENT_SPEED_INCREMENT;
+        console.log('Current speed:', movementSpeed);
 
-        // Respawn a new object of the same type
-        respawnObject(object.userData.type);
+        // Increase player height
+        playerHeight += PLAYER_HEIGHT_INCREMENT;
+        camera.position.y = playerHeight;
+        console.log('Current height:', playerHeight);
 
-        // Visual feedback for collection (optional, similar to selection effect but shorter)
-        createCollectionEffect(object.position);
+        // Respawn object after a short delay
+        setTimeout(() => {
+            respawnObject(object.geometry.type);
+        }, 1000); // Respawn after 1 second
     }
 
-    function updateScoreDisplay() {
-        document.getElementById('collected-count').textContent = collectedCount;
-    }
+    function respawnObject(type) {
+        let newObject;
+        if (type === 'BoxGeometry') {
+            const size = Math.random() * 0.8 + 0.2;
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            const material = new THREE.MeshPhongMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                transparent: true,
+                opacity: 0.8,
+                shininess: 100
+            });
+            newObject = new THREE.Mesh(geometry, material);
+            newObject.position.y = size / 2;
+            newObject.userData = {
+                originalColor: material.color.getHex(),
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.02,
+                    y: (Math.random() - 0.5) * 0.02,
+                    z: (Math.random() - 0.5) * 0.02
+                },
+                floatSpeed: Math.random() * 0.02 + 0.01,
+                floatOffset: Math.random() * Math.PI * 2,
+                originalPosition: newObject.position.clone(),
+                type: 'collectible'
+            };
+            cubes.push(newObject);
+        } else if (type === 'SphereGeometry') {
+            const radius = Math.random() * 0.6 + 0.15;
+            const geometry = new THREE.SphereGeometry(radius, 16, 16);
+            const material = new THREE.MeshPhongMaterial({
+                color: colors[Math.floor(Math.random() * colors.length)],
+                transparent: true,
+                opacity: 0.7,
+                emissive: colors[Math.floor(Math.random() * colors.length)],
+                emissiveIntensity: 0.2,
+                shininess: 150
+            });
+            newObject = new THREE.Mesh(geometry, material);
+            newObject.position.y = radius;
+            newObject.userData = {
+                originalColor: material.color.getHex(),
+                originalEmissive: material.emissive.getHex(),
+                floatSpeed: Math.random() * 0.03 + 0.01,
+                floatOffset: Math.random() * Math.PI * 2,
+                pulseSpeed: Math.random() * 0.05 + 0.02,
+                originalPosition: newObject.position.clone(),
+                type: 'collectible'
+            };
+            spheres.push(newObject);
+        }
 
-    function growPlayer() {
-        // Increase player scale gradually
-        currentScale += GROW_FACTOR_PER_COLLECTIBLE;
-        camera.scale.setScalar(currentScale);
-        camera.position.y = PLAYER_HEIGHT * currentScale; // Adjust camera height
-        console.log('Player scaled to:', currentScale.toFixed(2));
+        if (newObject) {
+            // Respawn at a new random location within the environment boundaries
+            newObject.position.set(
+                (Math.random() - 0.5) * 40,
+                newObject.position.y, // Maintain its original height based on its type
+                (Math.random() - 0.5) * 40
+            );
+            newObject.userData.originalPosition.copy(newObject.position); // Update original position for floating/pulsing effects if applicable
+            scene.add(newObject);
+            console.log('Object respawned:', newObject.uuid);
+        }
     }
 
 
@@ -1418,75 +1405,6 @@
         animateEffect();
     }
 
-    function createCollectionEffect(position) {
-        const particleCount = 30; // More particles for collection
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(particleCount * 3);
-        const colorsArray = new Float32Array(particleCount * 3);
-        const velocities = new Float32Array(particleCount * 3);
-
-        for (let i = 0; i < particleCount; i++) {
-            const i3 = i * 3;
-
-            positions[i3] = position.x;
-            positions[i3 + 1] = position.y;
-            positions[i3 + 2] = position.z;
-
-            const color = new THREE.Color(0x00FF00); // Greenish effect for collection
-            colorsArray[i3] = color.r;
-            colorsArray[i3 + 1] = color.g;
-            colorsArray[i3 + 2] = color.b;
-
-            // Random velocities to spread outwards and upwards
-            velocities[i3] = (Math.random() - 0.5) * 0.1;
-            velocities[i3 + 1] = Math.random() * 0.1 + 0.05; // Stronger upward movement
-            velocities[i3 + 2] = (Math.random() - 0.5) * 0.1;
-        }
-
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
-        geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
-
-
-        const material = new THREE.PointsMaterial({
-            size: 2,
-            transparent: true,
-            opacity: 1,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending
-        });
-
-        const effect = new THREE.Points(geometry, material);
-        scene.add(effect);
-
-        const startTime = performance.now();
-        const duration = 800; // Shorter duration for collection effect
-
-        function animateCollectionEffect() {
-            const elapsed = performance.now() - startTime;
-            const progress = elapsed / duration;
-
-            if (progress < 1) {
-                const currentPositions = effect.geometry.attributes.position.array;
-                const currentVelocities = effect.geometry.attributes.velocity.array;
-                for (let i = 0; i < particleCount * 3; i += 3) {
-                    currentPositions[i] += currentVelocities[i];
-                    currentPositions[i + 1] += currentVelocities[i + 1];
-                    currentPositions[i + 2] += currentVelocities[i + 2];
-                }
-                effect.geometry.attributes.position.needsUpdate = true;
-                material.opacity = 1 - progress;
-                requestAnimationFrame(animateCollectionEffect);
-            } else {
-                scene.remove(effect);
-                geometry.dispose();
-                material.dispose();
-            }
-        }
-        animateCollectionEffect();
-    }
-
-
     function detectScreenOrientation() {
         if (window.innerHeight > window.innerWidth) {
             if (screenOrientation !== 'portrait') {
@@ -1497,7 +1415,8 @@
         } else {
             if (screenOrientation !== 'landscape') {
                 screenOrientation = 'landscape';
-                console.getElementById('orientation-warning').style.display = 'none';
+                console.log('📱 Orientation: paysage');
+                document.getElementById('orientation-warning').style.display = 'none';
             }
         }
     }
@@ -1514,7 +1433,6 @@
     updateGyroStatus(false);
     updateVRStatus(false);
     updateFullscreenStatus();
-    document.getElementById('score-display').style.display = 'none'; // Hide score initially
 
     console.log('🎮 Application VR prête !');
 </script>
