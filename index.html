@@ -366,6 +366,12 @@
     let frameCount = 0;
     let lastTime = performance.now();
 
+    // Variables pour le traçage lumineux au sol
+    let lastCameraPosition = new THREE.Vector3();
+    const TRAIL_DISTANCE_THRESHOLD = 1.0; // Distance avant de laisser une trace
+    const TRAIL_DURATION = 2000; // Durée de la trace lumineuse en ms
+    let footstepTrails = []; // Tableau pour stocker les traces au sol
+
     init();
     animate();
 
@@ -379,6 +385,7 @@
         // Caméra optimisée pour VR mobile
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 1.6, 5);
+        lastCameraPosition.copy(camera.position); // Initialiser la dernière position de la caméra
 
         // Renderer avec optimisations
         renderer = new THREE.WebGLRenderer({
@@ -884,6 +891,68 @@
         particles.push(particleSystem);
     }
 
+    // New function to create particles at a specific position (for footsteps)
+    function createFootstepParticles(position) {
+        const particleCount = 50; // Fewer particles for a footstep effect
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colorsArr = new Float32Array(particleCount * 3); // Renamed to avoid conflict
+
+        for (let i = 0; i < particleCount; i++) {
+            const i3 = i * 3;
+
+            // Spawn particles slightly above the ground
+            positions[i3] = position.x + (Math.random() - 0.5) * 0.5;
+            positions[i3 + 1] = position.y + (Math.random() * 0.5);
+            positions[i3 + 2] = position.z + (Math.random() - 0.5) * 0.5;
+
+            const color = new THREE.Color(colors[Math.floor(Math.random() * colors.length)]);
+            colorsArr[i3] = color.r;
+            colorsArr[i3 + 1] = color.g;
+            colorsArr[i3 + 2] = color.b;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colorsArr, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.5, // Smaller size for footstep particles
+            transparent: true,
+            opacity: 1,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending
+        });
+
+        const particleSystem = new THREE.Points(geometry, material);
+        scene.add(particleSystem);
+
+        // Animate the particles to fade and rise
+        const startTime = performance.now();
+        const duration = 1000; // Particles disappear after 1 second
+
+        function animateFootstepParticles() {
+            const elapsed = performance.now() - startTime;
+            const progress = elapsed / duration;
+
+            if (progress < 1) {
+                material.opacity = 1 - progress;
+                // Make particles rise
+                const currentPositions = particleSystem.geometry.attributes.position.array;
+                for (let i = 1; i < currentPositions.length; i += 3) {
+                    currentPositions[i] += 0.01; // Adjust this value for faster/slower rise
+                }
+                particleSystem.geometry.attributes.position.needsUpdate = true;
+                requestAnimationFrame(animateFootstepParticles);
+            } else {
+                scene.remove(particleSystem);
+                geometry.dispose();
+                material.dispose();
+            }
+        }
+        animateFootstepParticles();
+    }
+
+
     function createEnvironment() {
         // Sol avec grille améliorée
         const gridGeometry = new THREE.PlaneGeometry(120, 120, 60, 60);
@@ -995,7 +1064,10 @@
         // Mouvement automatique si activé et en mode VR
         if (isVRMode && isAutoMoving) {
             moveCameraForward();
+            checkFootstepTrail(); // Check for footstep trail
         }
+
+        updateFootstepTrails(); // Update existing trails
 
         render();
     }
@@ -1010,6 +1082,62 @@
 
         if (camera.position.y < 1.6) {
             camera.position.y = 1.6;
+        }
+    }
+
+    function checkFootstepTrail() {
+        // Only consider horizontal movement for footsteps
+        const currentPos2D = new THREE.Vector2(camera.position.x, camera.position.z);
+        const lastPos2D = new THREE.Vector2(lastCameraPosition.x, lastCameraPosition.z);
+
+        if (currentPos2D.distanceTo(lastPos2D) > TRAIL_DISTANCE_THRESHOLD) {
+            createFootstepEffect(camera.position.clone());
+            lastCameraPosition.copy(camera.position);
+        }
+    }
+
+    function createFootstepEffect(position) {
+        // Create a glowing plane on the ground
+        const geometry = new THREE.PlaneGeometry(1.5, 1.5); // Size of the glowing patch
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x00ffff, // Bright cyan color for the glow
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending // Makes it blend nicely
+        });
+
+        const plane = new THREE.Mesh(geometry, material);
+        plane.rotation.x = -Math.PI / 2; // Lie flat on the ground
+        plane.position.set(position.x, 0.01, position.z); // Slightly above the grid to prevent z-fighting
+        scene.add(plane);
+
+        // Store the plane with its creation time for fading
+        footstepTrails.push({ mesh: plane, creationTime: performance.now() });
+
+        // Create particles at the same location
+        createFootstepParticles(position);
+    }
+
+    function updateFootstepTrails() {
+        const now = performance.now();
+        for (let i = footstepTrails.length - 1; i >= 0; i--) {
+            const trail = footstepTrails[i];
+            const elapsed = now - trail.creationTime;
+            const progress = elapsed / TRAIL_DURATION;
+
+            if (progress < 1) {
+                // Fade out the trail
+                trail.mesh.material.opacity = 1 - progress;
+                // You can also scale it down slightly or change color
+                // trail.mesh.scale.setScalar(1 - progress * 0.5);
+            } else {
+                // Remove the trail if it's past its duration
+                scene.remove(trail.mesh);
+                trail.mesh.geometry.dispose();
+                trail.mesh.material.dispose();
+                footstepTrails.splice(i, 1);
+            }
         }
     }
 
