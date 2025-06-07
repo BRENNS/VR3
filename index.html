@@ -234,6 +234,21 @@
             display: none; /* Masqué par défaut */
             transition: opacity 0.3s ease;
         }
+
+        #score-display {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 18px;
+            font-weight: bold;
+            display: none; /* Hidden by default, shown in VR mode */
+        }
     </style>
 </head>
 <body>
@@ -288,6 +303,7 @@
             <li>Bougez la tête pour regarder autour</li>
             <li>En mode VR, touchez l'écran pour démarrer/arrêter le mouvement</li>
             <li>Tapez deux fois pour quitter le mode VR</li>
+            <li><strong>NOUVEAU:</strong> Regardez une sphère fixement pour la collecter!</li>
         </ul>
     </div>
     <div style="font-size: 11px; opacity: 0.7;">
@@ -306,10 +322,15 @@
     <p>Placez votre téléphone dans le casque VR</p>
     <p style="font-size: 14px; opacity: 0.8;">Tapez une fois pour démarrer/arrêter le mouvement</p>
     <p style="font-size: 14px; opacity: 0.8;">Tapez deux fois pour quitter le mode VR</p>
+    <p style="font-size: 14px; opacity: 0.8; margin-top: 10px;"><strong>Regardez une sphère fixement pour la collecter!</strong></p>
 </div>
 
 <div id="movement-indicator">
     <span>🚶 Mouvement ON</span>
+</div>
+
+<div id="score-display">
+    Sphères Collectées: <span id="collection-count">0</span>
 </div>
 
 <div id="canvas-container"></div>
@@ -334,8 +355,7 @@
         alpha: 0,
         beta: 0,
         gamma: 0,
-        isCalibrated: false,
-        quaternion: new THREE.Quaternion() // Ajout du quaternion de calibration
+        isCalibrated: false
     };
 
     // Contrôles gyroscope avec filtrage
@@ -362,6 +382,13 @@
     let lastCameraPosition = new THREE.Vector3();
     const STEP_DISTANCE_THRESHOLD = 1.0; // Distance pour déclencher l'effet de pas
     const FLOOR_EFFECT_DURATION = 3000; // Durée de l'effet lumineux en millisecondes
+
+    // Variables pour l'interaction de regard (gaze interaction)
+    let gazeTimer = 0;
+    let targetedSphere = null;
+    const GAZE_DURATION_THRESHOLD = 1.5; // Temps en secondes pour collecter une sphère
+    let collectionCount = 0;
+    let audioListener, collectSound;
 
     // Matériaux et couleurs améliorés
     const colors = [
@@ -404,6 +431,11 @@
 
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
+        // Audio listener pour les sons 3D
+        audioListener = new THREE.AudioListener();
+        camera.add(audioListener);
+        scene.add(camera); // Add camera to scene to make audioListener work
+
         // Configuration des contrôles
         setupControls();
         setupDeviceOrientation();
@@ -417,6 +449,9 @@
         createFloatingSpheres();
         createParticleSystem();
         createEnvironment();
+
+        // Charger le son de collection
+        loadCollectSound();
 
         // Événements
         setupEventListeners();
@@ -571,61 +606,21 @@
         return start + (end - start) * factor;
     }
 
-    let deviceQuaternion = new THREE.Quaternion();
-    let cameraQuaternion = new THREE.Quaternion();
-
     function updateCameraFromOrientation() {
         if (!deviceOrientationEnabled) return;
 
-        // Obtention des angles bruts du gyroscope (degres)
-        let alpha = orientationData.smoothAlpha; // Z
-        let beta = orientationData.smoothBeta;   // X
-        let gamma = orientationData.smoothGamma; // Y
+        let alpha = orientationData.smoothAlpha - orientationCalibration.alpha;
+        let gamma = orientationData.smoothGamma - orientationCalibration.gamma;
 
-        // Convertir les angles en radians
+        alpha = normalizeAngle(alpha);
+        gamma = Math.max(-90, Math.min(90, gamma));
+
         const alphaRad = THREE.MathUtils.degToRad(alpha);
-        const betaRad = THREE.MathUtils.degToRad(beta);
         const gammaRad = THREE.MathUtils.degToRad(gamma);
 
-        // Créer un Euler à partir des angles du device.
-        // L'ordre 'YXZ' est courant pour les gyroscopes (yaw, pitch, roll).
-        // Les valeurs peuvent nécessiter des ajustements (négatifs/positifs)
-        // en fonction de l'orientation native du téléphone et de Three.js.
-        // Cette partie est souvent la plus délicate et dépend du device.
-        // Voici une configuration commune qui fonctionne pour beaucoup de mobiles:
-        const euler = new THREE.Euler(betaRad, alphaRad, -gammaRad, 'YXZ'); // Assurez-vous que l'ordre est correct
-
-        // Convertir l'Euler en Quaternion pour éviter le gimbal lock
-        deviceQuaternion.setFromEuler(euler);
-
-        // Appliquer une rotation de correction pour aligner la caméra avec la scène.
-        // Par exemple, si le téléphone est à plat et que vous voulez que le "haut" de l'écran soit l'avant de la caméra.
-        // Cela dépend de l'orientation physique de votre téléphone quand il est "neutre".
-        // Pour la plupart des téléphones tenus en paysage, l'axe Z du téléphone est vers le haut de la scène.
-        // Et l'axe X du téléphone (longueur) est l'axe X de la scène.
-        // Il faut souvent une rotation de -90 degrés autour de X pour passer du "haut" du téléphone à "devant" de la caméra.
-        const screenCorrection = new THREE.Quaternion();
-        screenCorrection.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2); // Rotate by 90 degrees around X to align
-
-        // Combinez le quaternion du device avec la correction d'écran
-        deviceQuaternion.multiply(screenCorrection);
-
-        // Appliquer la calibration si elle a été faite
-        if (orientationCalibration.isCalibrated) {
-            // Créez un quaternion de calibration inverse
-            const calibrationEuler = new THREE.Euler(
-                THREE.MathUtils.degToRad(0), // Beta n'est pas calibré pour l'orientation verticale de la tête
-                THREE.MathUtils.degToRad(orientationCalibration.alpha),
-                THREE.MathUtils.degToRad(-orientationCalibration.gamma),
-                'YXZ'
-            );
-            const inverseCalibrationQuaternion = new THREE.Quaternion().setFromEuler(calibrationEuler).invert();
-
-            deviceQuaternion.premultiply(inverseCalibrationQuaternion);
-        }
-
-        // Appliquer le quaternion résultant à la caméra
-        camera.quaternion.copy(deviceQuaternion);
+        camera.rotation.order = 'YXZ';
+        camera.rotation.y = alphaRad;
+        camera.rotation.z = -gammaRad * 0.2;
     }
 
     function normalizeAngle(angle) {
@@ -640,25 +635,14 @@
             return;
         }
 
-        // Capturez l'orientation actuelle du device
-        const alpha = orientationData.alpha;
-        const beta = orientationData.beta;
-        const gamma = orientationData.gamma;
+        orientationCalibration = {
+            alpha: orientationData.alpha,
+            beta: 0,
+            gamma: orientationData.gamma,
+            isCalibrated: true
+        };
 
-        // Créez un Euler basé sur l'orientation actuelle du device
-        // Il faut que cet Euler corresponde à celui utilisé dans updateCameraFromOrientation
-        const euler = new THREE.Euler(
-            THREE.MathUtils.degToRad(beta),
-            THREE.MathUtils.degToRad(alpha),
-            THREE.MathUtils.degToRad(-gamma),
-            'YXZ'
-        );
-
-        // Convertissez cet Euler en Quaternion pour la calibration
-        orientationCalibration.quaternion = new THREE.Quaternion().setFromEuler(euler);
-        orientationCalibration.isCalibrated = true;
-
-        console.log('🎯 Orientation calibrée (Quaternion):', orientationCalibration.quaternion);
+        console.log('🎯 Orientation calibrée:', orientationCalibration);
 
         const btn = document.getElementById('calibrate');
         const originalText = btn.textContent;
@@ -677,6 +661,7 @@
         const controls = document.getElementById('controls');
         const vrOverlay = document.getElementById('vrOverlay');
         const movementIndicator = document.getElementById('movement-indicator');
+        const scoreDisplay = document.getElementById('score-display'); // Get the score display element
 
         isVRMode = !isVRMode;
 
@@ -688,6 +673,7 @@
             controls.style.display = 'none';
             vrOverlay.style.display = 'block';
             movementIndicator.style.display = 'block'; // Afficher l'indicateur
+            scoreDisplay.style.display = 'block'; // Show the score display
 
             if (!isFullscreen) {
                 requestFullscreen();
@@ -708,6 +694,7 @@
             controls.style.display = 'flex';
             vrOverlay.style.display = 'none';
             movementIndicator.style.display = 'none'; // Masquer l'indicateur
+            scoreDisplay.style.display = 'none'; // Hide the score display
 
             renderer.setScissorTest(false);
             renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
@@ -896,6 +883,7 @@
             );
 
             sphere.userData = {
+                isSphere: true, // Mark this object as a sphere for gaze interaction
                 originalColor: material.color.getHex(),
                 originalEmissive: material.emissive.getHex(),
                 floatSpeed: Math.random() * 0.03 + 0.01,
@@ -997,6 +985,31 @@
         scene.add(stars);
     }
 
+    function loadCollectSound() {
+        audioLoader = new THREE.AudioLoader();
+        collectSound = new THREE.Audio(audioListener);
+
+        audioLoader.load('https://threejs.org/examples/sounds/hit.mp3', function(buffer) { // Replace with your sound URL if you have one
+            collectSound.setBuffer(buffer);
+            collectSound.setVolume(0.5);
+            console.log('🎵 Son de collection chargé.');
+        }, undefined, function(err) {
+            console.error('Erreur de chargement du son:', err);
+        });
+    }
+
+    function playCollectSound(position) {
+        if (collectSound && collectSound.buffer) {
+            // If you want positional sound, attach it to a PositionalAudio
+            // For a simple effect, directly play it
+            if (collectSound.isPlaying) {
+                collectSound.stop();
+            }
+            collectSound.play();
+        }
+    }
+
+
     function setupEventListeners() {
         window.addEventListener('resize', onWindowResize);
 
@@ -1048,6 +1061,9 @@
     function animate() {
         requestAnimationFrame(animate);
 
+        const delta = clock.getDelta(); // Get delta time for consistent animation speed
+        gazeTimer += delta; // Increment gaze timer
+
         frameCount++;
         const currentTime = performance.now();
         if (currentTime - lastTime >= 1000) {
@@ -1059,6 +1075,11 @@
         // Mouvement automatique si activé et en mode VR
         if (isVRMode && isAutoMoving) {
             moveCameraForward();
+        }
+
+        // Check for gaze interaction only in VR mode
+        if (isVRMode) {
+            checkGazeInteraction();
         }
 
         render();
@@ -1212,6 +1233,175 @@
     }
 
 
+    function checkGazeInteraction() {
+        // Only check gaze in VR mode
+        if (!isVRMode) {
+            if (targetedSphere) {
+                // Reset visual feedback if not in VR mode anymore
+                targetedSphere.material.color.setHex(targetedSphere.userData.originalColor);
+                targetedSphere.material.emissive.setHex(targetedSphere.userData.originalEmissive);
+                targetedSphere = null;
+                gazeTimer = 0;
+            }
+            return;
+        }
+
+        // Raycaster from the center of the screen (where the camera is looking)
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+        const intersects = raycaster.intersectObjects(spheres);
+
+        if (intersects.length > 0) {
+            const intersected = intersects[0].object;
+
+            if (intersected.userData.isSphere) { // Ensure it's a sphere
+                if (targetedSphere !== intersected) {
+                    // New sphere targeted, reset timer and previous sphere's feedback
+                    if (targetedSphere) {
+                        targetedSphere.material.color.setHex(targetedSphere.userData.originalColor);
+                        targetedSphere.material.emissive.setHex(targetedSphere.userData.originalEmissive);
+                    }
+                    targetedSphere = intersected;
+                    gazeTimer = 0;
+                    console.log('🎯 Nouvelle sphère ciblée!');
+                }
+
+                // Give visual feedback when targeting a sphere
+                if (targetedSphere) {
+                    const progress = Math.min(1, gazeTimer / GAZE_DURATION_THRESHOLD);
+                    const color = new THREE.Color(targetedSphere.userData.originalColor);
+                    const targetColor = new THREE.Color(0xFFFF00); // Yellow for targeting
+                    targetedSphere.material.color.lerpColors(color, targetColor, progress);
+                    targetedSphere.material.emissive.setHex(0x999900); // Make it glow slightly
+                    targetedSphere.material.emissiveIntensity = 0.5 + Math.sin(clock.getElapsedTime() * 10) * 0.2; // Pulsing glow
+                }
+
+                if (gazeTimer >= GAZE_DURATION_THRESHOLD) {
+                    // Sphere collected!
+                    console.log('✨ Sphère collectée!');
+                    collectSphere(targetedSphere);
+                    targetedSphere = null; // Reset target
+                    gazeTimer = 0; // Reset timer
+                }
+            }
+        } else {
+            // No sphere currently targeted or gaze moved away
+            if (targetedSphere) {
+                // Reset visual feedback
+                targetedSphere.material.color.setHex(targetedSphere.userData.originalColor);
+                targetedSphere.material.emissive.setHex(targetedSphere.userData.originalEmissive);
+                targetedSphere = null;
+                console.log('🚫 Cible perdue.');
+            }
+            gazeTimer = 0;
+        }
+    }
+
+    function collectSphere(sphere) {
+        // Play sound effect
+        playCollectSound(sphere.position);
+
+        // Create a particle explosion effect at the sphere's position
+        createCollectEffect(sphere.position);
+
+        // Remove the sphere from the scene and the spheres array
+        scene.remove(sphere);
+        const index = spheres.indexOf(sphere);
+        if (index > -1) {
+            spheres.splice(index, 1);
+        }
+
+        // Increment score and update display
+        collectionCount++;
+        document.getElementById('collection-count').textContent = collectionCount;
+    }
+
+    function createCollectEffect(position) {
+        const particleCount = 30;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3);
+        const colorsArray = new Float32Array(particleCount * 3);
+        const lifetimes = new Float32Array(particleCount);
+
+        for (let i = 0; i < particleCount; i++) {
+            const i3 = i * 3;
+
+            positions[i3] = position.x;
+            positions[i3 + 1] = position.y;
+            positions[i3 + 2] = position.z;
+
+            velocities[i3] = (Math.random() - 0.5) * 0.2;
+            velocities[i3 + 1] = Math.random() * 0.1 + 0.05; // Upwards burst
+            velocities[i3 + 2] = (Math.random() - 0.5) * 0.2;
+
+            const color = new THREE.Color(0xFFFFFF); // White/bright color for explosion
+            colorsArray[i3] = color.r;
+            colorsArray[i3 + 1] = color.g;
+            colorsArray[i3 + 2] = color.b;
+
+            lifetimes[i] = Math.random() * 0.8 + 0.4; // Short lifetime
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
+        geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
+
+        const material = new THREE.PointsMaterial({
+            size: 2,
+            transparent: true,
+            opacity: 1,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending
+        });
+
+        const explosionParticles = new THREE.Points(geometry, material);
+        scene.add(explosionParticles);
+
+        const effectStartTime = clock.getElapsedTime();
+
+        function animateExplosion() {
+            const currentTime = clock.getElapsedTime();
+            const positions = explosionParticles.geometry.attributes.position.array;
+            const velocities = explosionParticles.geometry.attributes.velocity.array;
+            const lifetimes = explosionParticles.geometry.attributes.lifetime.array;
+
+            let particlesAlive = 0;
+
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const particleLifetime = lifetimes[i];
+                const age = currentTime - effectStartTime;
+
+                if (age < particleLifetime) {
+                    positions[i3] += velocities[i3];
+                    positions[i3 + 1] += velocities[i3 + 1];
+                    positions[i3 + 2] += velocities[i3 + 2];
+
+                    const fadeProgress = age / particleLifetime;
+                    explosionParticles.material.opacity = 1.0 - fadeProgress;
+                    particlesAlive++;
+                } else {
+                    positions[i3] = positions[i3 + 1] = positions[i3 + 2] = 10000;
+                }
+            }
+
+            explosionParticles.geometry.attributes.position.needsUpdate = true;
+            explosionParticles.material.opacity = material.opacity;
+
+            if (particlesAlive > 0) {
+                requestAnimationFrame(animateExplosion);
+            } else {
+                scene.remove(explosionParticles);
+                geometry.dispose();
+                material.dispose();
+            }
+        }
+        animateExplosion();
+    }
+
+
     function render() {
         const time = clock.getElapsedTime();
 
@@ -1230,10 +1420,18 @@
             const floatX = Math.cos(time * userData.floatSpeed * 0.5) * 0.5;
             sphere.position.y = userData.originalPosition.y + floatY;
             sphere.position.x = userData.originalPosition.x + floatX;
-            const scale = 1 + Math.sin(time * userData.pulseSpeed) * 0.15;
-            sphere.scale.setScalar(scale);
-            const emissiveIntensity = 0.1 + Math.sin(time * userData.pulseSpeed * 2) * 0.1;
-            sphere.material.emissiveIntensity = emissiveIntensity;
+            // Only apply pulse if not currently targeted for collection
+            if (sphere !== targetedSphere) {
+                const scale = 1 + Math.sin(time * userData.pulseSpeed) * 0.15;
+                sphere.scale.setScalar(scale);
+                const emissiveIntensity = 0.1 + Math.sin(time * userData.pulseSpeed * 2) * 0.1;
+                sphere.material.emissiveIntensity = emissiveIntensity;
+            } else {
+                // When targeted, apply specific scaling based on gaze progress
+                const progress = Math.min(1, gazeTimer / GAZE_DURATION_THRESHOLD);
+                const scale = 1 + progress * 0.3; // Scale up as it's being targeted
+                sphere.scale.setScalar(scale);
+            }
         });
 
         particles.forEach(particleSystem => {
@@ -1262,6 +1460,8 @@
     }
 
     function checkIntersection() {
+        // This function is for direct tap/click interaction, not gaze.
+        // It's still useful for non-VR mode if you want objects to react to taps.
         raycaster.setFromCamera(mouse, camera);
 
         const intersects = raycaster.intersectObjects([...cubes, ...spheres]);
@@ -1269,6 +1469,15 @@
         if (intersects.length > 0) {
             const object = intersects[0].object;
 
+            if (object.userData.isSphere) {
+                // If it's a sphere and tapped directly (non-VR), collect it
+                if (!isVRMode) {
+                    collectSphere(object);
+                    return;
+                }
+            }
+
+            // Existing selection effect for cubes or non-VR sphere taps
             const originalColor = object.userData.originalColor;
 
             object.material.color.setHex(0xffffff);
