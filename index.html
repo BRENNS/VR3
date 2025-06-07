@@ -219,20 +219,24 @@
             background: rgba(255,255,255,0.2);
         }
 
-        /* Indicateur de mouvement */
         #movement-indicator {
             position: absolute;
-            bottom: 10px;
+            bottom: 50%;
             left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            z-index: 10;
-            display: none; /* Masqué par défaut */
-            transition: opacity 0.3s ease;
+            transform: translate(-50%, -50%);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: rgba(78, 205, 196, 0.5);
+            border: 2px solid #4ecdc4;
+            display: none; /* Cache par défaut */
+            z-index: 50; /* Au-dessus de l'overlay VR */
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        #movement-indicator.active {
+            background: rgba(46, 213, 115, 0.8); /* Vert plus vif */
+            border-color: #2ed573;
         }
     </style>
 </head>
@@ -286,8 +290,8 @@
             <li>Placez votre téléphone dans un casque VR</li>
             <li>Activez le mode VR pour l'écran divisé</li>
             <li>Bougez la tête pour regarder autour</li>
-            <li>En mode VR, touchez l'écran pour démarrer/arrêter le mouvement</li>
-            <li>Tapez deux fois pour quitter le mode VR</li>
+            <li>**Inclinez légèrement la tête vers le bas pour avancer**</li>
+            <li>Tapez pour interagir avec les objets</li>
         </ul>
     </div>
     <div style="font-size: 11px; opacity: 0.7;">
@@ -304,15 +308,10 @@
 <div class="vr-overlay" id="vrOverlay">
     <h3>Mode VR Activé</h3>
     <p>Placez votre téléphone dans le casque VR</p>
-    <p style="font-size: 14px; opacity: 0.8;">Tapez une fois pour démarrer/arrêter le mouvement</p>
-    <p style="font-size: 14px; opacity: 0.8;">Tapez deux fois pour quitter le mode VR</p>
+    <p style="font-size: 14px; opacity: 0.8;">Tapez deux fois pour quitter</p>
 </div>
 
-<div id="movement-indicator">
-    <span>🚶 Mouvement ON</span>
-</div>
-
-<div id="canvas-container"></div>
+<div id="movement-indicator"></div> <div id="canvas-container"></div>
 
 <script>
     // Configuration avancée
@@ -332,7 +331,7 @@
     // Système de calibrage amélioré
     let orientationCalibration = {
         alpha: 0,
-        beta: 0,
+        beta: 0, // Keep beta for calibration, but it won't affect pitch after the change
         gamma: 0,
         isCalibrated: false
     };
@@ -340,7 +339,7 @@
     // Contrôles gyroscope avec filtrage
     let orientationData = {
         alpha: 0,
-        beta: 0,
+        beta: 0, // Nous allons utiliser cette valeur pour le mouvement
         gamma: 0,
         smoothAlpha: 0,
         smoothBeta: 0,
@@ -351,9 +350,11 @@
     const SMOOTHING_FACTOR = 0.25;
     const ORIENTATION_THRESHOLD = 0.2;
 
-    // Variables de mouvement automatique en VR
-    let isAutoMoving = false; // Nouvelle variable pour le mouvement automatique
-    const MOVEMENT_SPEED = 0.1; // Vitesse de déplacement
+    // Variables de mouvement par inclinaison
+    let isMovingControlledByTilt = false;
+    const MOVEMENT_SPEED = 0.07; // Vitesse de déplacement, ajustée pour être confortable
+    const TILT_THRESHOLD_FORWARD = 15; // Degrés d'inclinaison vers le bas pour avancer
+    const TILT_THRESHOLD_BACKWARD = -15; // Degrés d'inclinaison vers le haut pour reculer (optionnel)
 
     // Matériaux et couleurs améliorés
     const colors = [
@@ -378,7 +379,7 @@
 
         // Caméra optimisée pour VR mobile
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.6, 5);
+        camera.position.set(0, 1.6, 5); // Hauteur du point de vue, 1.6m pour une personne standard
 
         // Renderer avec optimisations
         renderer = new THREE.WebGLRenderer({
@@ -543,7 +544,7 @@
         const newGamma = event.gamma || 0;
 
         orientationData.alpha = newAlpha;
-        orientationData.beta = newBeta;
+        orientationData.beta = newBeta; // Réactiver la capture de beta
         orientationData.gamma = newGamma;
 
         orientationData.smoothAlpha = lerp(orientationData.smoothAlpha, orientationData.alpha, SMOOTHING_FACTOR);
@@ -556,6 +557,26 @@
 
             updateCameraFromOrientation();
         }
+
+        // Logique de mouvement par inclinaison
+        if (isVRMode) { // Seulement en mode VR
+            const calibratedBeta = normalizeAngle(orientationData.smoothBeta - orientationCalibration.beta);
+
+            // Inclinaison vers le bas (devant)
+            if (calibratedBeta > TILT_THRESHOLD_FORWARD) {
+                isMovingControlledByTilt = true;
+                document.getElementById('movement-indicator').classList.add('active');
+            }
+                // Inclinaison vers le haut (arrière) - si vous voulez reculer
+                // else if (calibratedBeta < TILT_THRESHOLD_BACKWARD) {
+                //     isMovingControlledByTilt = true;
+                //     // Logic for backward movement, e.g., moveCameraBackward();
+            // }
+            else {
+                isMovingControlledByTilt = false;
+                document.getElementById('movement-indicator').classList.remove('active');
+            }
+        }
     }
 
     function lerp(start, end, factor) {
@@ -565,17 +586,29 @@
     function updateCameraFromOrientation() {
         if (!deviceOrientationEnabled) return;
 
+        // Apply the calibration offsets
         let alpha = orientationData.smoothAlpha - orientationCalibration.alpha;
+        // let beta = orientationData.smoothBeta - orientationCalibration.beta; // Beta not used for camera rotation
         let gamma = orientationData.smoothGamma - orientationCalibration.gamma;
 
+        // Normalize angles
         alpha = normalizeAngle(alpha);
-        gamma = Math.max(-90, Math.min(90, gamma));
+        gamma = Math.max(-90, Math.min(90, gamma)); // Clamp gamma
 
+        // Convert to radians
         const alphaRad = THREE.MathUtils.degToRad(alpha);
         const gammaRad = THREE.MathUtils.degToRad(gamma);
 
+        // Camera rotation order YXZ: Yaw (Y), Pitch (X), Roll (Z)
         camera.rotation.order = 'YXZ';
+
+        // Pitch (X) is deliberately not updated by device orientation
+        // camera.rotation.x remains 0 or whatever it was set to.
+
+        // For yaw (left/right):
         camera.rotation.y = alphaRad;
+
+        // For roll (side-to-side tilt): Reduced influence.
         camera.rotation.z = -gammaRad * 0.2;
     }
 
@@ -593,13 +626,14 @@
 
         orientationCalibration = {
             alpha: orientationData.alpha,
-            beta: 0,
+            beta: orientationData.beta, // Capturer le beta initial pour la calibration du mouvement
             gamma: orientationData.gamma,
             isCalibrated: true
         };
 
         console.log('🎯 Orientation calibrée:', orientationCalibration);
 
+        // Feedback visuel
         const btn = document.getElementById('calibrate');
         const originalText = btn.textContent;
         btn.textContent = '✅ Calibré';
@@ -629,17 +663,19 @@
             vrOverlay.style.display = 'block';
             movementIndicator.style.display = 'block'; // Afficher l'indicateur
 
+            // Forcer le plein écran en mode VR
             if (!isFullscreen) {
                 requestFullscreen();
             }
 
-            // Masquer l'overlay après 3 secondes, l'indicateur reste visible
+            // Masquer l'overlay après 3 secondes
             setTimeout(() => {
                 vrOverlay.style.display = 'none';
             }, 3000);
 
-            isAutoMoving = true; // Démarrer le mouvement automatique en VR
-            updateMovementIndicator(); // Mettre à jour l'indicateur
+            // Calibrer la vue au passage en mode VR pour avoir un point de référence pour le mouvement
+            calibrateOrientation();
+
         } else {
             console.log('👁️ Retour au mode normal');
             vrToggle.textContent = '🥽 Mode VR';
@@ -647,30 +683,15 @@
             info.style.display = 'block';
             controls.style.display = 'flex';
             vrOverlay.style.display = 'none';
-            movementIndicator.style.display = 'none'; // Masquer l'indicateur
+            movementIndicator.style.display = 'none'; // Cacher l'indicateur
+            isMovingControlledByTilt = false; // Arrêter le mouvement
 
+            // Restaurer le rendu normal
             renderer.setScissorTest(false);
             renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
-
-            isAutoMoving = false; // Arrêter le mouvement automatique
         }
 
         updateVRStatus(isVRMode);
-    }
-
-    function updateMovementIndicator() {
-        const indicator = document.getElementById('movement-indicator');
-        if (indicator) {
-            if (isAutoMoving) {
-                indicator.innerHTML = '🚶 Mouvement ON';
-                indicator.style.opacity = 1;
-                // Vous pouvez ajouter une animation pour indiquer le mouvement ici
-            } else {
-                indicator.innerHTML = '🛑 Mouvement OFF';
-                indicator.style.opacity = 0.7;
-            }
-            indicator.style.display = 'block'; // S'assurer qu'il est visible
-        }
     }
 
     function renderStereo() {
@@ -681,28 +702,31 @@
 
         const width = window.innerWidth;
         const height = window.innerHeight;
-        const eyeSeparation = 0.032;
+        const eyeSeparation = 0.032; // Distance inter-pupillaire
 
         renderer.setScissorTest(true);
 
+        // Œil gauche
         renderer.setScissor(0, 0, width / 2, height);
         renderer.setViewport(0, 0, width / 2, height);
         camera.position.x -= eyeSeparation;
         renderer.render(scene, camera);
 
+        // Œil droit
         renderer.setScissor(width / 2, 0, width / 2, height);
         renderer.setViewport(width / 2, 0, width / 2, height);
         camera.position.x += eyeSeparation * 2;
         renderer.render(scene, camera);
 
+        // Restaurer la position
         camera.position.x -= eyeSeparation;
     }
 
     function resetCameraView() {
         console.log('🎯 Remise à zéro de la vue');
-        camera.position.set(0, 1.6, 5);
-        camera.rotation.set(0, 0, 0);
-        calibrateOrientation();
+        camera.position.set(0, 1.6, 5); // Réinitialise la position
+        camera.rotation.set(0, 0, 0); // Réinitialise la rotation
+        calibrateOrientation(); // Calibrer la vue après reset
     }
 
     function toggleFullscreen() {
@@ -715,21 +739,26 @@
 
     function requestFullscreen() {
         const element = document.documentElement;
+
+        // Vérifier si c'est un iPhone
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
         if (isIOS) {
+            // Sur iOS, utiliser une approche différente pour le plein écran
             if (document.body.webkitRequestFullscreen) {
                 document.body.webkitRequestFullscreen();
             } else if (document.body.webkitEnterFullscreen) {
                 document.body.webkitEnterFullscreen();
             }
 
+            // Forcer l'orientation paysage sur iOS
             if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
                 window.screen.orientation.lock('landscape').catch(e => {
                     console.warn('Impossible de verrouiller l\'orientation:', e);
                 });
             }
         } else {
+            // Méthode standard pour les autres appareils
             const requestMethod = element.requestFullscreen ||
                 element.webkitRequestFullscreen ||
                 element.mozRequestFullScreen ||
@@ -935,43 +964,25 @@
 
     function setupEventListeners() {
         window.addEventListener('resize', onWindowResize);
+        window.addEventListener('click', onMouseClick);
+        window.addEventListener('touchstart', onTouchStart);
+        window.addEventListener('orientationchange', () => {
+            console.log('📱 Changement d\'orientation');
+            setTimeout(detectScreenOrientation, 300); // Délai pour laisser le temps au navigateur de s'ajuster
+        });
 
-        // Simplifié pour la gestion du mouvement/interaction en VR
+        // Double tap pour quitter le mode VR
         let lastTouchTime = 0;
         window.addEventListener('touchend', (event) => {
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTouchTime;
-
-            if (isVRMode) {
-                // Double tap pour quitter le mode VR
-                if (tapLength < 500 && tapLength > 0) {
-                    toggleVRMode();
-                } else {
-                    // Simple tap pour démarrer/arrêter le mouvement
-                    isAutoMoving = !isAutoMoving;
-                    updateMovementIndicator();
-                }
-            } else {
-                // Comportement normal (clic/tap) si pas en mode VR
-                if (event.touches && event.touches.length === 1) {
-                    const touch = event.touches[0];
-                    mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
-                    mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
-                    checkIntersection();
-                } else if (!event.touches) { // Pour les clics de souris sur desktop
-                    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-                    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-                    checkIntersection();
-                }
+            if (tapLength < 500 && tapLength > 0 && isVRMode) {
+                toggleVRMode();
             }
             lastTouchTime = currentTime;
         });
 
-        window.addEventListener('orientationchange', () => {
-            console.log('📱 Changement d\'orientation');
-            setTimeout(detectScreenOrientation, 300);
-        });
-
+        // Gestion de la visibilité de la page
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 console.log('⏸️ Application en arrière-plan');
@@ -984,6 +995,7 @@
     function animate() {
         requestAnimationFrame(animate);
 
+        // Monitoring des performances
         frameCount++;
         const currentTime = performance.now();
         if (currentTime - lastTime >= 1000) {
@@ -992,8 +1004,8 @@
             lastTime = currentTime;
         }
 
-        // Mouvement automatique si activé et en mode VR
-        if (isVRMode && isAutoMoving) {
+        // Mise à jour du mouvement basée sur l'inclinaison
+        if (isMovingControlledByTilt && isVRMode) {
             moveCameraForward();
         }
 
@@ -1001,13 +1013,16 @@
     }
 
     function moveCameraForward() {
+        // Obtenir la direction actuelle de la caméra (sur le plan XZ, ignorant la hauteur)
         const direction = new THREE.Vector3();
         camera.getWorldDirection(direction);
-        direction.y = 0;
-        direction.normalize();
+        direction.y = 0; // Annuler le mouvement vertical
+        direction.normalize(); // S'assurer que la direction est une unité
 
+        // Déplacer la caméra dans cette direction
         camera.position.addScaledVector(direction, MOVEMENT_SPEED);
 
+        // S'assurer que la caméra ne passe pas sous le sol (ajuster selon votre hauteur)
         if (camera.position.y < 1.6) {
             camera.position.y = 1.6;
         }
@@ -1017,50 +1032,82 @@
     function render() {
         const time = clock.getElapsedTime();
 
+        // Animation des cubes avec optimisations
         cubes.forEach((cube) => {
             const userData = cube.userData;
+
             cube.rotation.x += userData.rotationSpeed.x;
             cube.rotation.y += userData.rotationSpeed.y;
             cube.rotation.z += userData.rotationSpeed.z;
+
             const floatY = Math.sin(time * userData.floatSpeed + userData.floatOffset) * 2;
             cube.position.y = userData.originalPosition.y + floatY;
         });
 
+        // Animation des sphères
         spheres.forEach((sphere) => {
             const userData = sphere.userData;
+
             const floatY = Math.sin(time * userData.floatSpeed + userData.floatOffset) * 2.5;
             const floatX = Math.cos(time * userData.floatSpeed * 0.5) * 0.5;
+
             sphere.position.y = userData.originalPosition.y + floatY;
             sphere.position.x = userData.originalPosition.x + floatX;
+
             const scale = 1 + Math.sin(time * userData.pulseSpeed) * 0.15;
             sphere.scale.setScalar(scale);
+
+            // Animation de l'émission
             const emissiveIntensity = 0.1 + Math.sin(time * userData.pulseSpeed * 2) * 0.1;
             sphere.material.emissiveIntensity = emissiveIntensity;
         });
 
+        // Animation des particules
         particles.forEach(particleSystem => {
             particleSystem.rotation.y += 0.0005;
             const positions = particleSystem.geometry.attributes.position.array;
+
             for (let i = 1; i < positions.length; i += 3) {
                 positions[i] += Math.sin(time * 0.001 + positions[i] * 0.01) * 0.02;
             }
+
             particleSystem.geometry.attributes.position.needsUpdate = true;
         });
 
+        // Rendu stéréoscopique ou normal
         renderStereo();
     }
 
     function onMouseClick(event) {
-        // Cette fonction n'est plus appelée directement pour l'interaction en VR
-        // Elle est toujours là pour les interactions hors VR si besoin
+        if (isVRMode) return;
+
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
         checkIntersection();
     }
 
     function onTouchStart(event) {
-        event.preventDefault(); // Empêche le défilement et le zoom
-        // La logique de tap est maintenant dans `touchend`
+        event.preventDefault(); // Empêche le défilement et le zoom par défaut
+
+        // Intercepter le double tap pour quitter le mode VR
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTouchTime;
+        if (tapLength < 500 && tapLength > 0 && isVRMode) {
+            toggleVRMode();
+            lastTouchTime = 0; // Réinitialiser pour éviter les taps multiples
+            return;
+        }
+        lastTouchTime = currentTime;
+
+        // Si ce n'est pas un double tap pour quitter la VR, alors c'est une interaction (sélection)
+        if (event.touches.length === 1) {
+            const touch = event.touches[0];
+            mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
+            checkIntersection();
+        }
     }
 
     function checkIntersection() {
@@ -1071,11 +1118,13 @@
         if (intersects.length > 0) {
             const object = intersects[0].object;
 
+            // Animation de sélection améliorée
             const originalColor = object.userData.originalColor;
 
             object.material.color.setHex(0xffffff);
             object.scale.setScalar(1.5);
 
+            // Effet de particules
             createSelectionEffect(object.position);
 
             setTimeout(() => {
@@ -1109,6 +1158,7 @@
         const effect = new THREE.Points(geometry, material);
         scene.add(effect);
 
+        // Animation de disparition
         const startTime = performance.now();
         const duration = 1000;
 
@@ -1131,6 +1181,7 @@
     }
 
     function detectScreenOrientation() {
+        // Détecter l'orientation de l'écran
         if (window.innerHeight > window.innerWidth) {
             if (screenOrientation !== 'portrait') {
                 screenOrientation = 'portrait';
@@ -1152,9 +1203,11 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         console.log('📱 Redimensionnement:', window.innerWidth, 'x', window.innerHeight);
 
+        // Détecter l'orientation
         detectScreenOrientation();
     }
 
+    // Initialisation des statuts
     updateGyroStatus(false);
     updateVRStatus(false);
     updateFullscreenStatus();
