@@ -609,15 +609,15 @@
         // Use currentYaw for Y-axis rotation (yaw)
         const yawRad = THREE.MathUtils.degToRad(currentYaw - orientationCalibration.alpha);
 
-        // Use smoothed beta for X-axis rotation (pitch)
-        const pitchRad = THREE.MathUtils.degToRad(orientationData.smoothBeta - orientationCalibration.beta);
+        // REMOVE OR COMMENT OUT THIS LINE TO DISABLE UP/DOWN LOOKING (PITCH)
+        // const pitchRad = THREE.MathUtils.degToRad(orientationData.smoothBeta - orientationCalibration.beta);
 
         // Use smoothed gamma for Z-axis rotation (roll), with reduced effect
         const rollRad = -THREE.MathUtils.degToRad(orientationData.smoothGamma - orientationCalibration.gamma) * 0.2;
 
         camera.rotation.order = 'YXZ'; // Yaw (Y), Pitch (X), Roll (Z)
         camera.rotation.y = yawRad;
-        camera.rotation.x = pitchRad;
+        // camera.rotation.x = pitchRad; // COMMENT OUT THIS LINE
         camera.rotation.z = rollRad;
     }
     function normalizeAngle(angle) {
