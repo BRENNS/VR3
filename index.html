@@ -271,6 +271,7 @@
             <li>Activez le mode VR pour l'écran divisé</li>
             <li>Bougez la tête pour regarder autour</li>
             <li>Tapez pour interagir avec les objets</li>
+            <li>Maintenez "Avancer" pour vous déplacer</li>
         </ul>
     </div>
     <div style="font-size: 11px; opacity: 0.7;">
@@ -282,7 +283,7 @@
     <button id="vrToggle" class="control-btn">🥽 Mode VR</button>
     <button id="resetView" class="control-btn">🎯 Recentrer</button>
     <button id="calibrate" class="control-btn">⚙️ Calibrer</button>
-</div>
+    <button id="moveForward" class="control-btn">🚶 Avancer</button> </div>
 
 <div class="vr-overlay" id="vrOverlay">
     <h3>Mode VR Activé</h3>
@@ -328,6 +329,10 @@
     // Paramètres de lissage
     const SMOOTHING_FACTOR = 0.25;
     const ORIENTATION_THRESHOLD = 0.2;
+
+    // Variables de mouvement
+    let isMovingForward = false;
+    const MOVEMENT_SPEED = 0.1; // Vitesse de déplacement
 
     // Matériaux et couleurs améliorés
     const colors = [
@@ -396,10 +401,23 @@
         const vrToggle = document.getElementById('vrToggle');
         const resetView = document.getElementById('resetView');
         const calibrate = document.getElementById('calibrate');
+        const moveForwardBtn = document.getElementById('moveForward'); // Nouveau
 
         vrToggle.addEventListener('click', toggleVRMode);
         resetView.addEventListener('click', resetCameraView);
         calibrate.addEventListener('click', calibrateOrientation);
+
+        // Gestion des événements pour le bouton "Avancer"
+        if (moveForwardBtn) {
+            moveForwardBtn.addEventListener('mousedown', () => isMovingForward = true);
+            moveForwardBtn.addEventListener('mouseup', () => isMovingForward = false);
+            moveForwardBtn.addEventListener('mouseleave', () => isMovingForward = false); // Important pour le desktop
+            moveForwardBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // Empêche le défilement
+                isMovingForward = true;
+            }, { passive: false });
+            moveForwardBtn.addEventListener('touchend', () => isMovingForward = false);
+        }
     }
 
     function setupFullscreenHandlers() {
@@ -559,31 +577,17 @@
         // const betaRad = THREE.MathUtils.degToRad(beta); // Original line
         const gammaRad = THREE.MathUtils.degToRad(gamma);
 
-        // --- Crucial Adjustments Here ---
-        // These signs and axes depend heavily on how your specific device reports
-        // deviceorientation and how you hold it in the VR headset.
-        // You'll need to test these signs.
-
         // Camera rotation order YXZ: Yaw (Y), Pitch (X), Roll (Z)
         camera.rotation.order = 'YXZ';
 
-        // For pitch (up/down):
-        // REMOVED PITCH CONTROL: Setting camera.rotation.x to 0 or a fixed value.
-        // This line is commented out to disable pitch.
-        // camera.rotation.x = -betaRad;  // Original line
+        // For pitch (up/down): REMOVED PITCH CONTROL. camera.rotation.x is not updated by beta.
+        // camera.rotation.x = -betaRad;  // Original line (now ignored)
 
-        // For yaw (left/right): (You said this was better, keep it as tested)
-        // Ensure this matches your previous successful sign.
+        // For yaw (left/right):
         camera.rotation.y = alphaRad;
 
-        // For roll (side-to-side tilt):
-        // This is often the cause of "weird tilting". You might need to:
-        // - Flip the sign.
-        // - Reduce its influence significantly or even remove it if it's disorienting.
-        //   Head rotation in VR often primarily relies on Yaw and Pitch.
-        // Start with a small, potentially negated value.
-        camera.rotation.z = -gammaRad * 0.2; // Greatly reduced roll, potentially negated.
-        // Try 0.0 or just a very small value like 0.1 if it's still distracting.
+        // For roll (side-to-side tilt): Reduced and potentially negated.
+        camera.rotation.z = -gammaRad * 0.2;
     }
 
     function normalizeAngle(angle) {
@@ -971,8 +975,30 @@
             lastTime = currentTime;
         }
 
+        // Mise à jour du mouvement si le bouton "Avancer" est pressé
+        if (isMovingForward) {
+            moveCameraForward();
+        }
+
         render();
     }
+
+    function moveCameraForward() {
+        // Obtenir la direction actuelle de la caméra (sur le plan XZ, ignorant la hauteur)
+        const direction = new THREE.Vector3();
+        camera.getWorldDirection(direction);
+        direction.y = 0; // Annuler le mouvement vertical
+        direction.normalize(); // S'assurer que la direction est une unité
+
+        // Déplacer la caméra dans cette direction
+        camera.position.addScaledVector(direction, MOVEMENT_SPEED);
+
+        // S'assurer que la caméra ne passe pas sous le sol
+        if (camera.position.y < 1.6) {
+            camera.position.y = 1.6;
+        }
+    }
+
 
     function render() {
         const time = clock.getElapsedTime();
@@ -1034,12 +1060,15 @@
 
     function onTouchStart(event) {
         event.preventDefault();
-        if (event.touches.length === 1) {
-            const touch = event.touches[0];
-            mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+        // Vérifiez si le bouton "Avancer" n'est PAS la cible de l'événement tactile
+        if (!event.target.closest('#moveForward')) {
+            if (event.touches.length === 1) {
+                const touch = event.touches[0];
+                mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
 
-            checkIntersection();
+                checkIntersection();
+            }
         }
     }
 
