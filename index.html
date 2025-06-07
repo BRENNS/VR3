@@ -355,6 +355,13 @@
     let isAutoMoving = false; // Nouvelle variable pour le mouvement automatique
     const MOVEMENT_SPEED = 0.1; // Vitesse de déplacement
 
+    // Variables pour l'effet du sol
+    let floorMesh;
+    let originalFloorColor;
+    let lastCameraPosition = new THREE.Vector3();
+    const STEP_DISTANCE_THRESHOLD = 1.0; // Distance pour déclencher l'effet de pas
+    const FLOOR_EFFECT_DURATION = 3000; // Durée de l'effet lumineux en millisecondes
+
     // Matériaux et couleurs améliorés
     const colors = [
         0xff6b35, 0x4ecdc4, 0x45b7d1, 0x96ceb4,
@@ -365,12 +372,6 @@
     // Performance monitoring
     let frameCount = 0;
     let lastTime = performance.now();
-
-    // Variables pour le traçage lumineux au sol
-    let lastCameraPosition = new THREE.Vector3();
-    const TRAIL_DISTANCE_THRESHOLD = 1.0; // Distance avant de laisser une trace
-    const TRAIL_DURATION = 2000; // Durée de la trace lumineuse en ms
-    let footstepTrails = []; // Tableau pour stocker les traces au sol
 
     init();
     animate();
@@ -438,7 +439,7 @@
     function setupFullscreenHandlers() {
         document.addEventListener('fullscreenchange', updateFullscreenStatus);
         document.addEventListener('webkitfullscreenchange', updateFullscreenStatus);
-        document.addEventListener('mozfullscreenchange', updateFullscreenStatus);
+        document.addEventListener('mozFullScreenChange', updateFullscreenStatus);
         document.addEventListener('MSFullscreenChange', updateFullscreenStatus);
     }
 
@@ -891,83 +892,25 @@
         particles.push(particleSystem);
     }
 
-    // New function to create particles at a specific position (for footsteps)
-    function createFootstepParticles(position) {
-        const particleCount = 50; // Fewer particles for a footstep effect
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(particleCount * 3);
-        const colorsArr = new Float32Array(particleCount * 3); // Renamed to avoid conflict
-
-        for (let i = 0; i < particleCount; i++) {
-            const i3 = i * 3;
-
-            // Spawn particles slightly above the ground
-            positions[i3] = position.x + (Math.random() - 0.5) * 0.5;
-            positions[i3 + 1] = position.y + (Math.random() * 0.5);
-            positions[i3 + 2] = position.z + (Math.random() - 0.5) * 0.5;
-
-            const color = new THREE.Color(colors[Math.floor(Math.random() * colors.length)]);
-            colorsArr[i3] = color.r;
-            colorsArr[i3 + 1] = color.g;
-            colorsArr[i3 + 2] = color.b;
-        }
-
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('color', new THREE.BufferAttribute(colorsArr, 3));
-
-        const material = new THREE.PointsMaterial({
-            size: 0.5, // Smaller size for footstep particles
-            transparent: true,
-            opacity: 1,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending
-        });
-
-        const particleSystem = new THREE.Points(geometry, material);
-        scene.add(particleSystem);
-
-        // Animate the particles to fade and rise
-        const startTime = performance.now();
-        const duration = 1000; // Particles disappear after 1 second
-
-        function animateFootstepParticles() {
-            const elapsed = performance.now() - startTime;
-            const progress = elapsed / duration;
-
-            if (progress < 1) {
-                material.opacity = 1 - progress;
-                // Make particles rise
-                const currentPositions = particleSystem.geometry.attributes.position.array;
-                for (let i = 1; i < currentPositions.length; i += 3) {
-                    currentPositions[i] += 0.01; // Adjust this value for faster/slower rise
-                }
-                particleSystem.geometry.attributes.position.needsUpdate = true;
-                requestAnimationFrame(animateFootstepParticles);
-            } else {
-                scene.remove(particleSystem);
-                geometry.dispose();
-                material.dispose();
-            }
-        }
-        animateFootstepParticles();
-    }
-
-
     function createEnvironment() {
         // Sol avec grille améliorée
         const gridGeometry = new THREE.PlaneGeometry(120, 120, 60, 60);
-        const gridMaterial = new THREE.MeshBasicMaterial({
-            color: 0x333366,
+        // Changed to MeshPhongMaterial to allow emissive properties
+        const gridMaterial = new THREE.MeshPhongMaterial({
+            color: 0x333366, // Dark blue/purple base color
             wireframe: true,
             transparent: true,
-            opacity: 0.2
+            opacity: 0.2,
+            emissive: 0x000000, // Start with no emissive light
+            emissiveIntensity: 0
         });
 
-        const grid = new THREE.Mesh(gridGeometry, gridMaterial);
-        grid.rotation.x = -Math.PI / 2;
-        grid.position.y = 0;
-        grid.receiveShadow = true;
-        scene.add(grid);
+        floorMesh = new THREE.Mesh(gridGeometry, gridMaterial);
+        floorMesh.rotation.x = -Math.PI / 2;
+        floorMesh.position.y = 0;
+        floorMesh.receiveShadow = true;
+        scene.add(floorMesh);
+        originalFloorColor = new THREE.Color(0x333366); // Store original color
 
         // Ciel étoilé amélioré
         const starsGeometry = new THREE.BufferGeometry();
@@ -1064,10 +1007,7 @@
         // Mouvement automatique si activé et en mode VR
         if (isVRMode && isAutoMoving) {
             moveCameraForward();
-            checkFootstepTrail(); // Check for footstep trail
         }
-
-        updateFootstepTrails(); // Update existing trails
 
         render();
     }
@@ -1083,62 +1023,140 @@
         if (camera.position.y < 1.6) {
             camera.position.y = 1.6;
         }
-    }
 
-    function checkFootstepTrail() {
-        // Only consider horizontal movement for footsteps
-        const currentPos2D = new THREE.Vector2(camera.position.x, camera.position.z);
-        const lastPos2D = new THREE.Vector2(lastCameraPosition.x, lastCameraPosition.z);
-
-        if (currentPos2D.distanceTo(lastPos2D) > TRAIL_DISTANCE_THRESHOLD) {
-            createFootstepEffect(camera.position.clone());
+        // Check for "step" to trigger floor effect
+        if (camera.position.distanceTo(lastCameraPosition) > STEP_DISTANCE_THRESHOLD) {
+            triggerFloorEffect(camera.position.clone());
             lastCameraPosition.copy(camera.position);
         }
     }
 
-    function createFootstepEffect(position) {
-        // Create a glowing plane on the ground
-        const geometry = new THREE.PlaneGeometry(1.5, 1.5); // Size of the glowing patch
-        const material = new THREE.MeshBasicMaterial({
-            color: 0x00ffff, // Bright cyan color for the glow
-            transparent: true,
-            opacity: 1,
-            side: THREE.DoubleSide,
-            blending: THREE.AdditiveBlending // Makes it blend nicely
-        });
+    function triggerFloorEffect(position) {
+        if (!floorMesh) return;
 
-        const plane = new THREE.Mesh(geometry, material);
-        plane.rotation.x = -Math.PI / 2; // Lie flat on the ground
-        plane.position.set(position.x, 0.01, position.z); // Slightly above the grid to prevent z-fighting
-        scene.add(plane);
+        const originalEmissive = floorMesh.material.emissive.clone();
+        const originalEmissiveIntensity = floorMesh.material.emissiveIntensity;
 
-        // Store the plane with its creation time for fading
-        footstepTrails.push({ mesh: plane, creationTime: performance.now() });
+        // Brightest point for the flash
+        const flashColor = new THREE.Color(0x88CCFF); // A bright, slightly blueish color
+        const flashIntensity = 2.0; // How bright it gets
 
-        // Create particles at the same location
-        createFootstepParticles(position);
-    }
+        const startTime = Date.now();
 
-    function updateFootstepTrails() {
-        const now = performance.now();
-        for (let i = footstepTrails.length - 1; i >= 0; i--) {
-            const trail = footstepTrails[i];
-            const elapsed = now - trail.creationTime;
-            const progress = elapsed / TRAIL_DURATION;
+        function animateFloorEffect() {
+            const elapsedTime = Date.now() - startTime;
+            const progress = elapsedTime / FLOOR_EFFECT_DURATION;
 
             if (progress < 1) {
-                // Fade out the trail
-                trail.mesh.material.opacity = 1 - progress;
-                // You can also scale it down slightly or change color
-                // trail.mesh.scale.setScalar(1 - progress * 0.5);
+                // Interpolate emissive color and intensity
+                floorMesh.material.emissive.lerpColors(flashColor, originalEmissive, progress);
+                floorMesh.material.emissiveIntensity = lerp(flashIntensity, originalEmissiveIntensity, progress);
+
+                // Emitter particles when fading back
+                if (progress > 0.5 && Math.random() < 0.2) { // Start emitting particles halfway through fade
+                    createRisingParticles(position);
+                }
+
+                requestAnimationFrame(animateFloorEffect);
             } else {
-                // Remove the trail if it's past its duration
-                scene.remove(trail.mesh);
-                trail.mesh.geometry.dispose();
-                trail.mesh.material.dispose();
-                footstepTrails.splice(i, 1);
+                // Ensure it reverts to original state
+                floorMesh.material.emissive.copy(originalEmissive);
+                floorMesh.material.emissiveIntensity = originalEmissiveIntensity;
             }
         }
+        animateFloorEffect();
+    }
+
+    function createRisingParticles(originPosition) {
+        const particleCount = 15; // Number of particles per burst
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colorsArray = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3);
+        const lifetimes = new Float32Array(particleCount);
+
+        for (let i = 0; i < particleCount; i++) {
+            const i3 = i * 3;
+
+            // Start near the origin position, slightly varied on the floor
+            positions[i3] = originPosition.x + (Math.random() - 0.5) * 0.5;
+            positions[i3 + 1] = 0.1; // Slightly above the floor
+            positions[i3 + 2] = originPosition.z + (Math.random() - 0.5) * 0.5;
+
+            // Random color, similar to sky stars
+            const intensity = Math.random();
+            colorsArray[i3] = intensity;
+            colorsArray[i3 + 1] = intensity;
+            colorsArray[i3 + 2] = intensity;
+
+            // Velocity: primarily upwards, with slight horizontal variations
+            velocities[i3] = (Math.random() - 0.5) * 0.01;
+            velocities[i3 + 1] = Math.random() * 0.05 + 0.01; // Rise upwards
+            velocities[i3 + 2] = (Math.random() - 0.5) * 0.01;
+
+            lifetimes[i] = Math.random() * 1.5 + 0.5; // Particle lifetime in seconds
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
+        geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
+        geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1)); // Single value per particle
+
+        const material = new THREE.PointsMaterial({
+            size: 1.0, // Slightly smaller than sky stars
+            transparent: true,
+            opacity: 1.0,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending
+        });
+
+        const risingParticles = new THREE.Points(geometry, material);
+        scene.add(risingParticles);
+
+        const effectStartTime = clock.getElapsedTime();
+
+        function animateRisingParticles() {
+            const currentTime = clock.getElapsedTime();
+            const positions = risingParticles.geometry.attributes.position.array;
+            const velocities = risingParticles.geometry.attributes.velocity.array;
+            const lifetimes = risingParticles.geometry.attributes.lifetime.array;
+            const colors = risingParticles.geometry.attributes.color.array;
+
+            let particlesAlive = 0;
+
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const particleLifetime = lifetimes[i];
+                const age = currentTime - effectStartTime;
+
+                if (age < particleLifetime) {
+                    positions[i3] += velocities[i3];
+                    positions[i3 + 1] += velocities[i3 + 1];
+                    positions[i3 + 2] += velocities[i3 + 2];
+
+                    // Fade out as it ages
+                    const fadeProgress = age / particleLifetime;
+                    material.opacity = 1.0 - fadeProgress; // Apply fading to the material, affects all particles
+                    // For individual particle fading, you'd need a custom shader or per-particle opacity
+                    particlesAlive++;
+                } else {
+                    // Make particle invisible or reposition if it's dead
+                    positions[i3] = positions[i3 + 1] = positions[i3 + 2] = 10000; // Move far away
+                }
+            }
+
+            risingParticles.geometry.attributes.position.needsUpdate = true;
+            risingParticles.material.opacity = material.opacity; // Update material opacity for fading
+
+            if (particlesAlive > 0) {
+                requestAnimationFrame(animateRisingParticles);
+            } else {
+                scene.remove(risingParticles);
+                geometry.dispose();
+                material.dispose();
+            }
+        }
+        animateRisingParticles();
     }
 
 
