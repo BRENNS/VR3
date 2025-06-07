@@ -334,7 +334,8 @@
         alpha: 0,
         beta: 0,
         gamma: 0,
-        isCalibrated: false
+        isCalibrated: false,
+        quaternion: new THREE.Quaternion() // Ajout du quaternion de calibration
     };
 
     // Contrôles gyroscope avec filtrage
@@ -570,21 +571,61 @@
         return start + (end - start) * factor;
     }
 
+    let deviceQuaternion = new THREE.Quaternion();
+    let cameraQuaternion = new THREE.Quaternion();
+
     function updateCameraFromOrientation() {
         if (!deviceOrientationEnabled) return;
 
-        let alpha = orientationData.smoothAlpha - orientationCalibration.alpha;
-        let gamma = orientationData.smoothGamma - orientationCalibration.gamma;
+        // Obtention des angles bruts du gyroscope (degres)
+        let alpha = orientationData.smoothAlpha; // Z
+        let beta = orientationData.smoothBeta;   // X
+        let gamma = orientationData.smoothGamma; // Y
 
-        alpha = normalizeAngle(alpha);
-        gamma = Math.max(-90, Math.min(90, gamma));
-
+        // Convertir les angles en radians
         const alphaRad = THREE.MathUtils.degToRad(alpha);
+        const betaRad = THREE.MathUtils.degToRad(beta);
         const gammaRad = THREE.MathUtils.degToRad(gamma);
 
-        camera.rotation.order = 'YXZ';
-        camera.rotation.y = alphaRad;
-        camera.rotation.z = -gammaRad * 0.2;
+        // Créer un Euler à partir des angles du device.
+        // L'ordre 'YXZ' est courant pour les gyroscopes (yaw, pitch, roll).
+        // Les valeurs peuvent nécessiter des ajustements (négatifs/positifs)
+        // en fonction de l'orientation native du téléphone et de Three.js.
+        // Cette partie est souvent la plus délicate et dépend du device.
+        // Voici une configuration commune qui fonctionne pour beaucoup de mobiles:
+        const euler = new THREE.Euler(betaRad, alphaRad, -gammaRad, 'YXZ'); // Assurez-vous que l'ordre est correct
+
+        // Convertir l'Euler en Quaternion pour éviter le gimbal lock
+        deviceQuaternion.setFromEuler(euler);
+
+        // Appliquer une rotation de correction pour aligner la caméra avec la scène.
+        // Par exemple, si le téléphone est à plat et que vous voulez que le "haut" de l'écran soit l'avant de la caméra.
+        // Cela dépend de l'orientation physique de votre téléphone quand il est "neutre".
+        // Pour la plupart des téléphones tenus en paysage, l'axe Z du téléphone est vers le haut de la scène.
+        // Et l'axe X du téléphone (longueur) est l'axe X de la scène.
+        // Il faut souvent une rotation de -90 degrés autour de X pour passer du "haut" du téléphone à "devant" de la caméra.
+        const screenCorrection = new THREE.Quaternion();
+        screenCorrection.setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2); // Rotate by 90 degrees around X to align
+
+        // Combinez le quaternion du device avec la correction d'écran
+        deviceQuaternion.multiply(screenCorrection);
+
+        // Appliquer la calibration si elle a été faite
+        if (orientationCalibration.isCalibrated) {
+            // Créez un quaternion de calibration inverse
+            const calibrationEuler = new THREE.Euler(
+                THREE.MathUtils.degToRad(0), // Beta n'est pas calibré pour l'orientation verticale de la tête
+                THREE.MathUtils.degToRad(orientationCalibration.alpha),
+                THREE.MathUtils.degToRad(-orientationCalibration.gamma),
+                'YXZ'
+            );
+            const inverseCalibrationQuaternion = new THREE.Quaternion().setFromEuler(calibrationEuler).invert();
+
+            deviceQuaternion.premultiply(inverseCalibrationQuaternion);
+        }
+
+        // Appliquer le quaternion résultant à la caméra
+        camera.quaternion.copy(deviceQuaternion);
     }
 
     function normalizeAngle(angle) {
@@ -599,14 +640,25 @@
             return;
         }
 
-        orientationCalibration = {
-            alpha: orientationData.alpha,
-            beta: 0,
-            gamma: orientationData.gamma,
-            isCalibrated: true
-        };
+        // Capturez l'orientation actuelle du device
+        const alpha = orientationData.alpha;
+        const beta = orientationData.beta;
+        const gamma = orientationData.gamma;
 
-        console.log('🎯 Orientation calibrée:', orientationCalibration);
+        // Créez un Euler basé sur l'orientation actuelle du device
+        // Il faut que cet Euler corresponde à celui utilisé dans updateCameraFromOrientation
+        const euler = new THREE.Euler(
+            THREE.MathUtils.degToRad(beta),
+            THREE.MathUtils.degToRad(alpha),
+            THREE.MathUtils.degToRad(-gamma),
+            'YXZ'
+        );
+
+        // Convertissez cet Euler en Quaternion pour la calibration
+        orientationCalibration.quaternion = new THREE.Quaternion().setFromEuler(euler);
+        orientationCalibration.isCalibrated = true;
+
+        console.log('🎯 Orientation calibrée (Quaternion):', orientationCalibration.quaternion);
 
         const btn = document.getElementById('calibrate');
         const originalText = btn.textContent;
