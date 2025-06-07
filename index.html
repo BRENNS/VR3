@@ -582,13 +582,21 @@
         orientationData.smoothBeta = lerp(orientationData.smoothBeta, newBeta, SMOOTHING_FACTOR);
         orientationData.smoothGamma = lerp(orientationData.smoothGamma, newGamma, SMOOTHING_FACTOR);
 
-        // Only update camera if there's significant change (reduces jitters)
-        if (Math.abs(newAlpha - orientationData.smoothAlpha) > ORIENTATION_THRESHOLD ||
-            Math.abs(newBeta - orientationData.smoothBeta) > ORIENTATION_THRESHOLD ||
-            Math.abs(newGamma - orientationData.smoothGamma) > ORIENTATION_THRESHOLD) {
+        // Calculate delta for alpha to handle 360 degree wrap-around
+        if (lastAlpha !== null) {
+            let deltaAlpha = orientationData.smoothAlpha - lastAlpha;
 
-            updateCameraFromOrientation();
+            // Handle alpha wrap-around (e.g., from 359 to 0, or 0 to 359)
+            if (deltaAlpha > 180) {
+                deltaAlpha -= 360;
+            } else if (deltaAlpha < -180) {
+                deltaAlpha += 360;
+            }
+            currentYaw += deltaAlpha;
         }
+        lastAlpha = orientationData.smoothAlpha;
+
+        updateCameraFromOrientation();
     }
 
     function lerp(start, end, factor) {
@@ -598,21 +606,20 @@
     function updateCameraFromOrientation() {
         if (!deviceOrientationEnabled) return;
 
-        let alpha = orientationData.smoothAlpha - orientationCalibration.alpha;
-        let gamma = orientationData.smoothGamma - orientationCalibration.gamma;
+        // Use currentYaw for Y-axis rotation (yaw)
+        const yawRad = THREE.MathUtils.degToRad(currentYaw - orientationCalibration.alpha);
 
-        alpha = normalizeAngle(alpha);
-        gamma = Math.max(-90, Math.min(90, gamma));
+        // Use smoothed beta for X-axis rotation (pitch)
+        const pitchRad = THREE.MathUtils.degToRad(orientationData.smoothBeta - orientationCalibration.beta);
 
-        const alphaRad = THREE.MathUtils.degToRad(alpha);
-        const gammaRad = THREE.MathUtils.degToRad(gamma);
+        // Use smoothed gamma for Z-axis rotation (roll), with reduced effect
+        const rollRad = -THREE.MathUtils.degToRad(orientationData.smoothGamma - orientationCalibration.gamma) * 0.2;
 
-        camera.rotation.order = 'YXZ';
-        camera.rotation.y = alphaRad;
-        camera.rotation.x = THREE.MathUtils.degToRad(orientationData.smoothBeta - orientationCalibration.beta); // Use beta for X-axis rotation (pitch)
-        camera.rotation.z = -gammaRad * 0.2;
+        camera.rotation.order = 'YXZ'; // Yaw (Y), Pitch (X), Roll (Z)
+        camera.rotation.y = yawRad;
+        camera.rotation.x = pitchRad;
+        camera.rotation.z = rollRad;
     }
-
     function normalizeAngle(angle) {
         while (angle > 180) angle -= 360;
         while (angle < -180) angle += 360;
@@ -626,11 +633,13 @@
         }
 
         orientationCalibration = {
-            alpha: orientationData.smoothAlpha,
+            alpha: orientationData.smoothAlpha, // Calibrate alpha to current smoothAlpha
             beta: orientationData.smoothBeta,
             gamma: orientationData.smoothGamma,
             isCalibrated: true
         };
+        currentYaw = 0; // Reset total yaw on calibration
+        lastAlpha = orientationData.smoothAlpha; // Reset lastAlpha for delta calculation
 
         console.log('🎯 Orientation calibrée:', orientationCalibration);
 
@@ -739,6 +748,8 @@
         camera.rotation.set(0, 0, 0);
         calibrateOrientation();
     }
+    let currentYaw = 0;
+    let lastAlpha = null;
 
     function toggleFullscreen() {
         if (!isFullscreen) {
@@ -844,7 +855,8 @@
                 floatSpeed: Math.random() * 0.02 + 0.01,
                 floatOffset: Math.random() * Math.PI * 2,
                 originalPosition: cube.position.clone(),
-                type: 'collectible' // Identify as collectible
+                type: 'collectible', // Identify as collectible
+                originalSize: size
             };
 
             cubes.push(cube);
@@ -884,7 +896,8 @@
                 floatOffset: Math.random() * Math.PI * 2,
                 pulseSpeed: Math.random() * 0.05 + 0.02,
                 originalPosition: sphere.position.clone(),
-                type: 'collectible' // Identify as collectible
+                type: 'collectible', // Identify as collectible
+                originalRadius: radius
             };
 
             spheres.push(sphere);
@@ -1289,16 +1302,29 @@
         camera.position.y = playerHeight;
         console.log('Current height:', playerHeight);
 
-        // Respawn object after a short delay
+        const originalSizeOrRadius = object.geometry.type === 'BoxGeometry' ? object.userData.originalSize : object.userData.originalRadius;
+
+        // Remove object from scene and its respective array
+        scene.remove(object);
+        if (object.geometry.type === 'BoxGeometry') {
+            cubes = cubes.filter(c => c !== object);
+        } else if (object.geometry.type === 'SphereGeometry') {
+            spheres = spheres.filter(s => s !== object);
+        }
+
+        // ... (existing code)
+
+        // Respawn object after a short delay, passing the original size/radius
         setTimeout(() => {
-            respawnObject(object.geometry.type);
+            respawnObject(object.geometry.type, originalSizeOrRadius);
         }, 1000); // Respawn after 1 second
+
     }
 
-    function respawnObject(type) {
+    function respawnObject(type, originalSizeOrRadius) { // Pass original size/radius as an argument
         let newObject;
         if (type === 'BoxGeometry') {
-            const size = Math.random() * 0.8 + 0.2;
+            const size = originalSizeOrRadius; // Use the original size
             const geometry = new THREE.BoxGeometry(size, size, size);
             const material = new THREE.MeshPhongMaterial({
                 color: colors[Math.floor(Math.random() * colors.length)],
@@ -1307,6 +1333,8 @@
                 shininess: 100
             });
             newObject = new THREE.Mesh(geometry, material);
+            newObject.castShadow = true; // Ensure shadow casting is re-enabled
+            newObject.receiveShadow = true; // Ensure shadow receiving is re-enabled
             newObject.position.y = size / 2;
             newObject.userData = {
                 originalColor: material.color.getHex(),
@@ -1318,11 +1346,12 @@
                 floatSpeed: Math.random() * 0.02 + 0.01,
                 floatOffset: Math.random() * Math.PI * 2,
                 originalPosition: newObject.position.clone(),
-                type: 'collectible'
+                type: 'collectible',
+                originalSize: size // Store the original size
             };
             cubes.push(newObject);
         } else if (type === 'SphereGeometry') {
-            const radius = Math.random() * 0.6 + 0.15;
+            const radius = originalSizeOrRadius; // Use the original radius
             const geometry = new THREE.SphereGeometry(radius, 16, 16);
             const material = new THREE.MeshPhongMaterial({
                 color: colors[Math.floor(Math.random() * colors.length)],
@@ -1333,6 +1362,8 @@
                 shininess: 150
             });
             newObject = new THREE.Mesh(geometry, material);
+            newObject.castShadow = true; // Ensure shadow casting is re-enabled
+            newObject.receiveShadow = true; // Ensure shadow receiving is re-enabled
             newObject.position.y = radius;
             newObject.userData = {
                 originalColor: material.color.getHex(),
@@ -1341,7 +1372,8 @@
                 floatOffset: Math.random() * Math.PI * 2,
                 pulseSpeed: Math.random() * 0.05 + 0.02,
                 originalPosition: newObject.position.clone(),
-                type: 'collectible'
+                type: 'collectible',
+                originalRadius: radius // Store the original radius
             };
             spheres.push(newObject);
         }
@@ -1358,7 +1390,6 @@
             console.log('Object respawned:', newObject.uuid);
         }
     }
-
 
     function createSelectionEffect(position) {
         const particleCount = 20;
