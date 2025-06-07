@@ -249,6 +249,62 @@
             font-weight: bold;
             display: none; /* Hidden by default, shown in VR mode */
         }
+
+        /* Styles for the Gaze Cursor */
+        #gaze-cursor {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px; /* Base size of the cursor */
+            height: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none; /* Crucial: allows clicks/touches to pass through */
+            z-index: 99; /* Below overlays, above game content */
+            opacity: 0; /* Hidden by default, shown in VR mode */
+            transition: opacity 0.3s ease;
+        }
+
+        .cursor-inner, .cursor-outer {
+            position: absolute;
+            border-radius: 50%;
+            box-sizing: border-box;
+            transition: all 0.1s ease-out; /* Smooth transitions for size/color changes */
+        }
+
+        .cursor-outer {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.7);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .cursor-inner {
+            width: 8px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        /* State styles for the cursor */
+        .gaze-target .cursor-outer {
+            border-color: rgba(255, 255, 0, 0.9); /* Yellow when targeting */
+            transform: scale(1.2); /* Slightly larger */
+        }
+        .gaze-target .cursor-inner {
+            background: rgba(255, 255, 0, 1);
+        }
+
+        .gaze-loading .cursor-outer {
+            border-color: rgba(0, 255, 0, 0.9); /* Green when loading */
+            transform: scale(1.5); /* Even larger */
+            border-width: 3px;
+        }
+        .gaze-loading .cursor-inner {
+            background: rgba(0, 255, 0, 1);
+            transform: scale(1.2); /* Inner dot also scales */
+        }
     </style>
 </head>
 <body>
@@ -333,6 +389,11 @@
     Sphères Collectées: <span id="collection-count">0</span>
 </div>
 
+<div id="gaze-cursor">
+    <div class="cursor-outer"></div>
+    <div class="cursor-inner"></div>
+</div>
+
 <div id="canvas-container"></div>
 
 <script>
@@ -341,7 +402,8 @@
     let cubes = [], spheres = [], particles = [];
     let raycaster = new THREE.Raycaster();
     let clock = new THREE.Clock();
-    let mouse = new THREE.Vector2();
+    // In VR, mouse will be fixed at center, so we don't need actual mouse coords
+    let mouse = new THREE.Vector2(0, 0); // Fixed at center for gaze interaction
 
     // Variables VR et gyroscope améliorées
     let isVRMode = false;
@@ -390,6 +452,9 @@
     let collectionCount = 0;
     let audioListener, collectSound;
 
+    // Variables pour le curseur de regard
+    let gazeCursor, cursorInner, cursorOuter;
+
     // Matériaux et couleurs améliorés
     const colors = [
         0xff6b35, 0x4ecdc4, 0x45b7d1, 0x96ceb4,
@@ -435,6 +500,11 @@
         audioListener = new THREE.AudioListener();
         camera.add(audioListener);
         scene.add(camera); // Add camera to scene to make audioListener work
+
+        // Initialisation du curseur
+        gazeCursor = document.getElementById('gaze-cursor');
+        cursorInner = document.querySelector('.cursor-inner');
+        cursorOuter = document.querySelector('.cursor-outer');
 
         // Configuration des contrôles
         setupControls();
@@ -661,7 +731,8 @@
         const controls = document.getElementById('controls');
         const vrOverlay = document.getElementById('vrOverlay');
         const movementIndicator = document.getElementById('movement-indicator');
-        const scoreDisplay = document.getElementById('score-display'); // Get the score display element
+        const scoreDisplay = document.getElementById('score-display');
+        const gazeCursor = document.getElementById('gaze-cursor');
 
         isVRMode = !isVRMode;
 
@@ -672,8 +743,9 @@
             info.style.display = 'none';
             controls.style.display = 'none';
             vrOverlay.style.display = 'block';
-            movementIndicator.style.display = 'block'; // Afficher l'indicateur
-            scoreDisplay.style.display = 'block'; // Show the score display
+            movementIndicator.style.display = 'block';
+            scoreDisplay.style.display = 'block';
+            gazeCursor.style.opacity = 1; // Show the cursor
 
             if (!isFullscreen) {
                 requestFullscreen();
@@ -684,8 +756,8 @@
                 vrOverlay.style.display = 'none';
             }, 3000);
 
-            isAutoMoving = true; // Démarrer le mouvement automatique en VR
-            updateMovementIndicator(); // Mettre à jour l'indicateur
+            isAutoMoving = true;
+            updateMovementIndicator();
         } else {
             console.log('👁️ Retour au mode normal');
             vrToggle.textContent = '🥽 Mode VR';
@@ -693,13 +765,22 @@
             info.style.display = 'block';
             controls.style.display = 'flex';
             vrOverlay.style.display = 'none';
-            movementIndicator.style.display = 'none'; // Masquer l'indicateur
-            scoreDisplay.style.display = 'none'; // Hide the score display
+            movementIndicator.style.display = 'none';
+            scoreDisplay.style.display = 'none';
+            gazeCursor.style.opacity = 0; // Hide the cursor
 
             renderer.setScissorTest(false);
             renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
 
-            isAutoMoving = false; // Arrêter le mouvement automatique
+            isAutoMoving = false;
+            // Reset gaze target and cursor state when exiting VR
+            if (targetedSphere) {
+                targetedSphere.material.color.setHex(targetedSphere.userData.originalColor);
+                targetedSphere.material.emissive.setHex(targetedSphere.userData.originalEmissive);
+                targetedSphere = null;
+                gazeTimer = 0;
+            }
+            updateGazeCursor(false, 0); // Reset cursor appearance
         }
 
         updateVRStatus(isVRMode);
@@ -732,16 +813,19 @@
 
         renderer.setScissorTest(true);
 
+        // Left eye
         renderer.setScissor(0, 0, width / 2, height);
         renderer.setViewport(0, 0, width / 2, height);
         camera.position.x -= eyeSeparation;
         renderer.render(scene, camera);
 
+        // Right eye
         renderer.setScissor(width / 2, 0, width / 2, height);
         renderer.setViewport(width / 2, 0, width / 2, height);
         camera.position.x += eyeSeparation * 2;
         renderer.render(scene, camera);
 
+        // Reset camera position for next frame
         camera.position.x -= eyeSeparation;
     }
 
@@ -1000,8 +1084,6 @@
 
     function playCollectSound(position) {
         if (collectSound && collectSound.buffer) {
-            // If you want positional sound, attach it to a PositionalAudio
-            // For a simple effect, directly play it
             if (collectSound.isPlaying) {
                 collectSound.stop();
             }
@@ -1013,7 +1095,6 @@
     function setupEventListeners() {
         window.addEventListener('resize', onWindowResize);
 
-        // Simplifié pour la gestion du mouvement/interaction en VR
         let lastTouchTime = 0;
         window.addEventListener('touchend', (event) => {
             const currentTime = new Date().getTime();
@@ -1234,27 +1315,28 @@
 
 
     function checkGazeInteraction() {
-        // Only check gaze in VR mode
         if (!isVRMode) {
+            // Reset visual feedback if not in VR mode anymore
             if (targetedSphere) {
-                // Reset visual feedback if not in VR mode anymore
                 targetedSphere.material.color.setHex(targetedSphere.userData.originalColor);
                 targetedSphere.material.emissive.setHex(targetedSphere.userData.originalEmissive);
-                targetedSphere = null;
-                gazeTimer = 0;
             }
+            targetedSphere = null;
+            gazeTimer = 0;
+            updateGazeCursor(false, 0); // Reset cursor appearance
             return;
         }
 
         // Raycaster from the center of the screen (where the camera is looking)
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        // No need for mouse.x, mouse.y as it's always center (0,0) for gaze interaction
+        raycaster.setFromCamera(mouse, camera); // mouse is fixed at (0,0)
 
         const intersects = raycaster.intersectObjects(spheres);
 
         if (intersects.length > 0) {
             const intersected = intersects[0].object;
 
-            if (intersected.userData.isSphere) { // Ensure it's a sphere
+            if (intersected.userData.isSphere) {
                 if (targetedSphere !== intersected) {
                     // New sphere targeted, reset timer and previous sphere's feedback
                     if (targetedSphere) {
@@ -1267,14 +1349,15 @@
                 }
 
                 // Give visual feedback when targeting a sphere
-                if (targetedSphere) {
-                    const progress = Math.min(1, gazeTimer / GAZE_DURATION_THRESHOLD);
-                    const color = new THREE.Color(targetedSphere.userData.originalColor);
-                    const targetColor = new THREE.Color(0xFFFF00); // Yellow for targeting
-                    targetedSphere.material.color.lerpColors(color, targetColor, progress);
-                    targetedSphere.material.emissive.setHex(0x999900); // Make it glow slightly
-                    targetedSphere.material.emissiveIntensity = 0.5 + Math.sin(clock.getElapsedTime() * 10) * 0.2; // Pulsing glow
-                }
+                const progress = Math.min(1, gazeTimer / GAZE_DURATION_THRESHOLD);
+                const color = new THREE.Color(targetedSphere.userData.originalColor);
+                const targetColor = new THREE.Color(0xFFFF00); // Yellow for targeting
+                targetedSphere.material.color.lerpColors(color, targetColor, progress);
+                targetedSphere.material.emissive.setHex(0x999900); // Make it glow slightly
+                targetedSphere.material.emissiveIntensity = 0.5 + Math.sin(clock.getElapsedTime() * 10) * 0.2; // Pulsing glow
+
+                // Update cursor
+                updateGazeCursor(true, progress);
 
                 if (gazeTimer >= GAZE_DURATION_THRESHOLD) {
                     // Sphere collected!
@@ -1282,6 +1365,7 @@
                     collectSphere(targetedSphere);
                     targetedSphere = null; // Reset target
                     gazeTimer = 0; // Reset timer
+                    updateGazeCursor(false, 0); // Reset cursor appearance after collection
                 }
             }
         } else {
@@ -1294,8 +1378,33 @@
                 console.log('🚫 Cible perdue.');
             }
             gazeTimer = 0;
+            updateGazeCursor(false, 0); // Reset cursor appearance
         }
     }
+
+    function updateGazeCursor(isTargeting, progress) {
+        if (!gazeCursor || !cursorInner || !cursorOuter) return;
+
+        if (isTargeting) {
+            gazeCursor.classList.add('gaze-target');
+            // If progress is significant, add loading class
+            if (progress > 0.1) {
+                gazeCursor.classList.add('gaze-loading');
+                // You could also animate the inner circle's width/height to show progress
+                cursorInner.style.transform = `scale(${1 + progress * 0.5})`; // Inner circle grows
+                cursorOuter.style.transform = `scale(${1.2 + progress * 0.5})`; // Outer circle grows
+            } else {
+                gazeCursor.classList.remove('gaze-loading');
+                cursorInner.style.transform = ''; // Reset inner scale
+                cursorOuter.style.transform = ''; // Reset outer scale
+            }
+        } else {
+            gazeCursor.classList.remove('gaze-target', 'gaze-loading');
+            cursorInner.style.transform = ''; // Reset inner scale
+            cursorOuter.style.transform = ''; // Reset outer scale
+        }
+    }
+
 
     function collectSphere(sphere) {
         // Play sound effect
@@ -1447,8 +1556,8 @@
     }
 
     function onMouseClick(event) {
-        // Cette fonction n'est plus appelée directement pour l'interaction en VR
-        // Elle est toujours là pour les interactions hors VR si besoin
+        // This function is for direct tap/click interaction, not gaze.
+        // It's still useful for non-VR mode if you want objects to react to taps.
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         checkIntersection();
@@ -1460,8 +1569,8 @@
     }
 
     function checkIntersection() {
-        // This function is for direct tap/click interaction, not gaze.
-        // It's still useful for non-VR mode if you want objects to react to taps.
+        // This function is for desktop click/touch interaction, not gaze.
+        // It's separate from the gaze interaction logic.
         raycaster.setFromCamera(mouse, camera);
 
         const intersects = raycaster.intersectObjects([...cubes, ...spheres]);
