@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Expérience VR Mobile Améliorée</title>
+    <title>Enhanced Mobile VR Experience</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body {
@@ -219,7 +219,7 @@
             background: rgba(255,255,255,0.2);
         }
 
-        /* Indicateur de mouvement */
+        /* Movement Indicator */
         #movement-indicator {
             position: absolute;
             bottom: 10px;
@@ -231,7 +231,7 @@
             border-radius: 20px;
             font-size: 12px;
             z-index: 10;
-            display: none; /* Masqué par défaut */
+            display: none; /* Hidden by default */
             transition: opacity 0.3s ease;
         }
 
@@ -253,6 +253,21 @@
         #timer-display {
             position: absolute;
             top: 100px; /* Below score display */
+            right: 10px;
+            z-index: 100;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #speed-display { /* New style for speed display */
+            position: absolute;
+            top: 140px; /* Below timer display */
             right: 10px;
             z-index: 100;
             background: rgba(0,0,0,0.8);
@@ -302,27 +317,27 @@
 <body>
 <div id="orientation-warning">
     <div style="font-size: 48px; margin-bottom: 20px;">📱</div>
-    <h2>Tournez votre téléphone</h2>
-    <p>Basculez en mode paysage pour une expérience VR optimale</p>
+    <h2>Rotate your Phone</h2>
+    <p>Switch to landscape mode for an optimal VR experience</p>
     <div style="margin-top: 20px; font-size: 16px; opacity: 0.8;">
-        Meilleure expérience avec un casque VR mobile
+        Best experienced with a mobile VR headset
     </div>
 </div>
 
 <div id="gyro-permission">
     <div style="font-size: 48px; margin-bottom: 20px;">🧭</div>
-    <h2>Permission Gyroscope Requise</h2>
-    <p>Autorisez l'accès au gyroscope pour contrôler la caméra avec les mouvements de votre tête</p>
+    <h2>Gyroscope Permission Required</h2>
+    <p>Allow access to the gyroscope to control the camera with your head movements</p>
     <p style="font-size: 14px; opacity: 0.8; margin: 20px 0;">
-        Cette permission est nécessaire pour une expérience VR immersive
+        This permission is necessary for an immersive VR experience
     </p>
-    <button class="control-btn" onclick="requestGyroPermission()">Autoriser le Gyroscope</button>
+    <button class="control-btn" onclick="requestGyroPermission()">Allow Gyroscope</button>
     <button class="control-btn" onclick="skipGyroPermission()" style="margin-top: 10px; opacity: 0.7;">
-        Continuer sans gyroscope
+        Continue without gyroscope
     </button>
 </div>
 
-<button class="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran">
+<button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen">
     ⛶
 </button>
 
@@ -333,11 +348,11 @@
     </div>
     <div class="status-item">
         <div class="status-dot" id="vr-status"></div>
-        <span>Mode VR</span>
+        <span>VR Mode</span>
     </div>
     <div class="status-item">
         <div class="status-dot" id="fullscreen-status"></div>
-        <span>Plein écran</span>
+        <span>Fullscreen</span>
     </div>
 </div>
 
@@ -346,68 +361,71 @@
 </div>
 
 <div id="timer-display">
-    <span>Temps: <span id="time-value">00:00</span></span>
+    <span>Time: <span id="time-value">00:00</span></span>
+</div>
+
+<div id="speed-display"> <span>Speed: <span id="speed-value">0.0</span></span>
 </div>
 
 <div id="info">
-    <h3>🚀 VR Mobile - Expérience Immersive</h3>
+    <h3>🚀 Mobile VR - Immersive Experience</h3>
     <div style="margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px;">
         <strong>Instructions:</strong>
         <ul style="margin: 5px 0; padding-left: 20px; font-size: 12px;">
-            <li>Placez votre téléphone dans un casque VR</li>
-            <li>Activez le mode VR pour l'écran divisé</li>
-            <li>Bougez la tête pour regarder autour</li>
-            <li>En mode VR, touchez l'écran pour démarrer/arrêter le mouvement</li>
-            <li>Tapez deux fois pour quitter le mode VR</li>
-            <li>Collectez des objets pour augmenter votre vitesse et votre taille !</li>
-            <li>Essayez d'atteindre un score élevé avant la fin du temps !</li>
+            <li>Place your phone in a VR headset</li>
+            <li>Activate VR mode for split screen</li>
+            <li>Move your head to look around</li>
+            <li>In VR mode, touch the screen to start/stop movement</li>
+            <li>Double tap to exit VR mode</li>
+            <li>Collect items to increase your speed and size!</li>
+            <li>Try to achieve a high score before time runs out!</li>
         </ul>
     </div>
     <div style="font-size: 11px; opacity: 0.7;">
-        Optimisé pour iPhone et Android
+        Optimized for iPhone and Android
     </div>
 </div>
 
 <div id="controls">
-    <button id="vrToggle" class="control-btn">🥽 Mode VR</button>
-    <button id="resetView" class="control-btn">🎯 Recentrer</button>
-    <button id="calibrate" class="control-btn">⚙️ Calibrer</button>
+    <button id="vrToggle" class="control-btn">🥽 VR Mode</button>
+    <button id="resetView" class="control-btn">🎯 Recenter</button>
+    <button id="calibrate" class="control-btn">⚙️ Calibrate</button>
 </div>
 
 <div class="vr-overlay" id="vrOverlay">
-    <h3>Mode VR Activé</h3>
-    <p>Placez votre téléphone dans le casque VR</p>
-    <p style="font-size: 14px; opacity: 0.8;">Tapez une fois pour démarrer/arrêter le mouvement</p>
-    <p style="font-size: 14px; opacity: 0.8;">Tapez deux fois pour quitter le mode VR</p>
+    <h3>VR Mode Activated</h3>
+    <p>Place your phone in the VR headset</p>
+    <p style="font-size: 14px; opacity: 0.8;">Tap once to start/stop movement</p>
+    <p style="font-size: 14px; opacity: 0.8;">Double tap to exit VR mode</p>
 </div>
 
 <div id="movement-indicator">
-    <span>🚶 Mouvement ON</span>
+    <span>🚶 Movement ON</span>
 </div>
 
 <div id="canvas-container"></div>
 
 <div id="game-over-overlay">
     <h2 id="game-over-title"></h2>
-    <p>Score final: <span id="final-score"></span></p>
-    <button class="control-btn" onclick="restartGame()">Rejouer</button>
+    <p>Final Score: <span id="final-score"></span></p>
+    <button class="control-btn" onclick="restartGame()">Play Again</button>
 </div>
 
 <script>
-    // Configuration avancée
+    // Advanced Configuration
     let scene, camera, renderer;
     let cubes = [], spheres = [], particles = [];
     let raycaster = new THREE.Raycaster();
     let clock = new THREE.Clock();
 
-    // Variables VR et gyroscope améliorées
+    // Enhanced VR and Gyroscope Variables
     let isVRMode = false;
     let deviceOrientationEnabled = false;
     let gyroPermissionGranted = false;
     let isFullscreen = false;
     let screenOrientation = 'portrait';
 
-    // Système de calibrage amélioré
+    // Enhanced Calibration System
     let orientationCalibration = {
         alpha: 0,
         beta: 0,
@@ -415,7 +433,7 @@
         isCalibrated: false
     };
 
-    // Contrôles gyroscope avec filtrage
+    // Gyroscope controls with filtering
     let orientationData = {
         alpha: 0,
         beta: 0,
@@ -425,16 +443,16 @@
         smoothGamma: 0
     };
 
-    // Paramètres de lissage pour les mouvements de la caméra
-    const SMOOTHING_FACTOR = 0.25; // Facteur de lissage pour le gyroscope
-    const ORIENTATION_THRESHOLD = 0.05; // Seuil pour appliquer les mises à jour d'orientation (réduit les mouvements brusques)
+    // Smoothing parameters for camera movements
+    const SMOOTHING_FACTOR = 0.25; // Smoothing factor for gyroscope
+    const ORIENTATION_THRESHOLD = 0.05; // Threshold to apply orientation updates (reduces jerky movements)
 
-    // Variables de mouvement automatique en VR
+    // Auto movement variables in VR
     let isAutoMoving = false;
-    let movementSpeed = 0.1; // Vitesse de déplacement initiale
-    const MOVEMENT_SPEED_INCREMENT = 0.02; // Augmentation de vitesse par objet collecté
+    let movementSpeed = 0.1; // Initial movement speed
+    const MOVEMENT_SPEED_INCREMENT = 0.02; // Speed increase per collected object
 
-    // Variables pour l'effet du sol
+    // Floor effect variables
     let floorMesh;
     let originalFloorColor;
     let lastCameraPosition = new THREE.Vector3();
@@ -446,7 +464,7 @@
     let playerHeight = 0.5; // Initial player height
     const PLAYER_HEIGHT_INCREMENT = 0.1; // How much player grows per collected item
 
-    // Matériaux et couleurs améliorés
+    // Enhanced materials and colors
     const colors = [
         0xff6b35, 0x4ecdc4, 0x45b7d1, 0x96ceb4,
         0xfeca57, 0xff9ff3, 0x54a0ff, 0x5f27cd,
@@ -467,18 +485,18 @@
     animate();
 
     function init() {
-        console.log('🚀 Initialisation de l\'expérience VR...');
+        console.log('🚀 Initializing VR experience...');
 
-        // Scène avec améliorations
+        // Scene with enhancements
         scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0x000015, 30, 150);
 
-        // Caméra optimisée pour VR mobile
+        // Camera optimized for mobile VR
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, playerHeight, 5); // Set initial camera height based on playerHeight
         lastCameraPosition.copy(camera.position);
 
-        // Renderer avec optimisations
+        // Renderer with optimizations
         renderer = new THREE.WebGLRenderer({
             antialias: window.devicePixelRatio < 2,
             powerPreference: "high-performance",
@@ -493,32 +511,33 @@
 
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // Configuration des contrôles
+        // Controls setup
         setupControls();
         setupDeviceOrientation();
         setupFullscreenHandlers();
 
-        // Éclairage amélioré
+        // Enhanced Lighting
         setupLighting();
 
-        // Création du monde
+        // World creation
         createFloatingCubes();
         createFloatingSpheres();
         createParticleSystem();
         createEnvironment();
 
-        // Événements
+        // Events
         setupEventListeners();
 
-        // Vérification des permissions
+        // Permission check
         checkGyroPermission();
 
         updateScoreDisplay(); // Initial display of score
         updateTimerDisplay(); // Initial display will show 00:00 as gameStartTime is 0
+        updateSpeedDisplay(); // Initial display of speed
 
         resetGame(); // Reset game state for a fresh start
 
-        console.log('✅ Initialisation terminée');
+        console.log('✅ Initialization complete');
     }
 
     function setupControls() {
@@ -551,11 +570,11 @@
     }
 
     function setupLighting() {
-        // Éclairage ambiant
+        // Ambient light
         const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
         scene.add(ambientLight);
 
-        // Lumière directionnelle avec ombres
+        // Directional light with shadows
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(10, 10, 5);
         directionalLight.castShadow = true;
@@ -563,7 +582,7 @@
         directionalLight.shadow.mapSize.height = 1024;
         scene.add(directionalLight);
 
-        // Lumières colorées animées
+        // Animated colored lights
         const light1 = new THREE.PointLight(0xff6b35, 1, 25);
         light1.position.set(-8, 6, -8);
         scene.add(light1);
@@ -582,11 +601,11 @@
             typeof DeviceOrientationEvent.requestPermission === 'function') {
             document.getElementById('gyro-permission').style.display = 'flex';
         } else if (window.DeviceOrientationEvent) {
-            // Android ou navigateurs qui ne nécessitent pas de permission explicite
+            // Android or browsers that don't require explicit permission
             setupDeviceOrientation();
             document.getElementById('gyro-permission').style.display = 'none';
         } else {
-            console.warn('⚠️ DeviceOrientation non supporté');
+            console.warn('⚠️ DeviceOrientation not supported');
             updateGyroStatus(false);
         }
     }
@@ -595,20 +614,20 @@
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
                 .then(response => {
-                    console.log('📱 Réponse permission gyroscope:', response);
+                    console.log('📱 Gyroscope permission response:', response);
                     if (response === 'granted') {
                         gyroPermissionGranted = true;
                         document.getElementById('gyro-permission').style.display = 'none';
                         setupDeviceOrientation();
                         updateGyroStatus(true);
                     } else {
-                        console.warn('❌ Permission gyroscope refusée');
+                        console.warn('❌ Gyroscope permission denied');
                         updateGyroStatus(false);
                         document.getElementById('gyro-permission').style.display = 'none';
                     }
                 })
                 .catch(error => {
-                    console.error('❌ Erreur permission gyroscope:', error);
+                    console.error('❌ Gyroscope permission error:', error);
                     updateGyroStatus(false);
                     document.getElementById('gyro-permission').style.display = 'none';
                 });
@@ -626,10 +645,10 @@
         if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', onDeviceOrientation, true);
             deviceOrientationEnabled = true;
-            console.log('✅ Gyroscope configuré');
+            console.log('✅ Gyroscope configured');
             updateGyroStatus(true);
         } else {
-            console.warn('⚠️ DeviceOrientation non disponible');
+            console.warn('⚠️ DeviceOrientation not available');
             updateGyroStatus(false);
         }
     }
@@ -696,7 +715,7 @@
 
     function calibrateOrientation() {
         if (!deviceOrientationEnabled) {
-            alert('⚠️ Gyroscope non disponible pour la calibration');
+            alert('⚠️ Gyroscope not available for calibration');
             return;
         }
 
@@ -709,11 +728,11 @@
         currentYaw = 0; // Reset total yaw on calibration
         lastAlpha = orientationData.smoothAlpha; // Reset lastAlpha for delta calculation
 
-        console.log('🎯 Orientation calibrée:', orientationCalibration);
+        console.log('🎯 Orientation calibrated:', orientationCalibration);
 
         const btn = document.getElementById('calibrate');
         const originalText = btn.textContent;
-        btn.textContent = '✅ Calibré';
+        btn.textContent = '✅ Calibrated';
         btn.style.background = 'linear-gradient(45deg, #2ed573, #1e90ff)';
 
         setTimeout(() => {
@@ -732,8 +751,8 @@
         isVRMode = !isVRMode;
 
         if (isVRMode) {
-            console.log('🥽 Activation du mode VR');
-            vrToggle.textContent = '👁️ Mode Normal';
+            console.log('🥽 Activating VR mode');
+            vrToggle.textContent = '👁️ Normal Mode';
             vrToggle.classList.add('active');
             info.style.display = 'none';
             controls.style.display = 'none';
@@ -756,8 +775,8 @@
                 console.log("Game timer started!");
             }
         } else {
-            console.log('👁️ Retour au mode normal');
-            vrToggle.textContent = '🥽 Mode VR';
+            console.log('👁️ Returning to normal mode');
+            vrToggle.textContent = '🥽 VR Mode';
             vrToggle.classList.remove('active');
             info.style.display = 'block';
             controls.style.display = 'flex';
@@ -777,10 +796,10 @@
         const indicator = document.getElementById('movement-indicator');
         if (indicator) {
             if (isAutoMoving) {
-                indicator.innerHTML = '🚶 Mouvement ON';
+                indicator.innerHTML = '🚶 Movement ON';
                 indicator.style.opacity = 1;
             } else {
-                indicator.innerHTML = '🛑 Mouvement OFF';
+                indicator.innerHTML = '🛑 Movement OFF';
                 indicator.style.opacity = 0.7;
             }
             indicator.style.display = 'block';
@@ -816,7 +835,7 @@
     }
 
     function resetCameraView() {
-        console.log('🎯 Remise à zéro de la vue');
+        console.log('🎯 Resetting camera view');
         camera.position.set(0, playerHeight, 5); // Reset to current player height
         camera.rotation.set(0, 0, 0);
         calibrateOrientation();
@@ -845,7 +864,7 @@
 
             if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
                 window.screen.orientation.lock('landscape').catch(e => {
-                    console.warn('Impossible de verrouiller l\'orientation:', e);
+                    console.warn('Could not lock orientation:', e);
                 });
             }
         } else {
@@ -906,6 +925,11 @@
             // Show 00:00 if timer hasn't started yet
             document.getElementById('time-value').textContent = '00:00';
         }
+    }
+
+    function updateSpeedDisplay() {
+        // Display speed rounded to one decimal place
+        document.getElementById('speed-value').textContent = movementSpeed.toFixed(1);
     }
 
     function createFloatingCubes() {
@@ -1033,7 +1057,7 @@
     }
 
     function createEnvironment() {
-        // Sol avec grille améliorée
+        // Floor with enhanced grid
         const gridGeometry = new THREE.PlaneGeometry(120, 120, 60, 60);
         const gridMaterial = new THREE.MeshPhongMaterial({
             color: 0x333366,
@@ -1051,7 +1075,7 @@
         scene.add(floorMesh);
         originalFloorColor = new THREE.Color(0x333366);
 
-        // Ciel étoilé amélioré
+        // Enhanced starry sky
         const starsGeometry = new THREE.BufferGeometry();
         const starPositions = new Float32Array(1500 * 3);
         const starColors = new Float32Array(1500 * 3);
@@ -1123,15 +1147,15 @@
         });
 
         window.addEventListener('orientationchange', () => {
-            console.log('📱 Changement d\'orientation');
+            console.log('📱 Orientation changed');
             setTimeout(detectScreenOrientation, 300);
         });
 
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                console.log('⏸️ Application en arrière-plan');
+                console.log('⏸️ App in background');
             } else {
-                console.log('▶️ Application au premier plan');
+                console.log('▶️ App in foreground');
             }
         });
     }
@@ -1398,6 +1422,7 @@
 
         // Increase speed
         movementSpeed += MOVEMENT_SPEED_INCREMENT;
+        updateSpeedDisplay(); // Update speed display after changing speed
         console.log('Current speed:', movementSpeed);
 
         // Increase player height
@@ -1547,7 +1572,7 @@
         } else {
             if (screenOrientation !== 'landscape') {
                 screenOrientation = 'landscape';
-                console.log('📱 Orientation: paysage');
+                console.log('📱 Orientation: landscape');
                 document.getElementById('orientation-warning').style.display = 'none';
             }
         }
@@ -1557,7 +1582,7 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        console.log('📱 Redimensionnement:', window.innerWidth, 'x', window.innerHeight);
+        console.log('📱 Resizing:', window.innerWidth, 'x', window.innerHeight);
 
         detectScreenOrientation();
     }
@@ -1574,10 +1599,10 @@
         finalScoreDisplay.textContent = playerScore;
 
         if (playerScore >= WIN_SCORE_THRESHOLD) {
-            gameOverTitle.textContent = '🎉 VICTOIRE ! 🎉';
+            gameOverTitle.textContent = '🎉 VICTORY! 🎉';
             gameOverTitle.classList.remove('lose');
         } else {
-            gameOverTitle.textContent = 'Game Over !';
+            gameOverTitle.textContent = 'Game Over!';
             gameOverTitle.classList.add('lose');
         }
 
@@ -1612,6 +1637,7 @@
         // Reset UI displays
         updateScoreDisplay();
         updateTimerDisplay(); // Will now show 00:00
+        updateSpeedDisplay(); // Reset speed display
 
         // Ensure movement is off until VR mode is re-entered
         isAutoMoving = false;
@@ -1639,6 +1665,7 @@
         // Ensure all UI elements reflect the reset state
         updateScoreDisplay();
         updateTimerDisplay();
+        updateSpeedDisplay(); // Update speed display on reset
         document.getElementById('game-over-overlay').style.display = 'none';
 
         // Ensure initial collectibles are present
@@ -1653,7 +1680,7 @@
     updateVRStatus(false);
     updateFullscreenStatus();
 
-    console.log('🎮 Application VR prête !');
+    console.log('🎮 VR Application ready!');
 </script>
 </body>
 </html>
