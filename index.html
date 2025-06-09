@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Enhanced Mobile VR Experience</title>
+    <title>Expérience VR Mobile Améliorée</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body {
@@ -219,7 +219,7 @@
             background: rgba(255,255,255,0.2);
         }
 
-        /* Movement Indicator */
+        /* Indicateur de mouvement */
         #movement-indicator {
             position: absolute;
             bottom: 10px;
@@ -231,11 +231,11 @@
             border-radius: 20px;
             font-size: 12px;
             z-index: 10;
-            display: none; /* Hidden by default */
+            display: none; /* Masqué par défaut */
             transition: opacity 0.3s ease;
         }
 
-        #score-display, #game-stats {
+        #score-display {
             position: absolute;
             top: 60px;
             right: 10px;
@@ -246,22 +246,32 @@
             border-radius: 20px;
             font-size: 14px;
             display: flex;
-            flex-direction: column;
-            align-items: flex-start;
+            align-items: center;
             gap: 5px;
         }
 
-        #game-stats {
-            top: 105px; /* Position below score display */
+        #timer-display {
+            position: absolute;
+            top: 100px; /* Below score display */
+            right: 10px;
+            z-index: 100;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
-        #game-over-screen {
+        #game-over-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0,0,0,0.9);
             color: white;
             display: none; /* Hidden by default */
             flex-direction: column;
@@ -270,54 +280,49 @@
             z-index: 1002;
             text-align: center;
             font-size: 28px;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(8px);
         }
 
-        #game-over-screen button {
-            margin-top: 30px;
-            padding: 15px 30px;
-            font-size: 18px;
-            background: linear-gradient(45deg, #4ecdc4, #44a08d);
-            border: none;
-            border-radius: 30px;
-            color: white;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.4);
-            transition: all 0.3s ease;
+        #game-over-overlay h2 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: #4ecdc4; /* Win color */
         }
 
-        #game-over-screen button:hover {
-            background: linear-gradient(45deg, #3aa79d, #388a7b);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(78, 205, 196, 0.6);
+        #game-over-overlay h2.lose {
+            color: #ff6b35; /* Lose color */
         }
 
+        #game-over-overlay p {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
 <div id="orientation-warning">
     <div style="font-size: 48px; margin-bottom: 20px;">📱</div>
-    <h2>Rotate your phone</h2>
-    <p>Switch to landscape mode for optimal VR experience</p>
+    <h2>Tournez votre téléphone</h2>
+    <p>Basculez en mode paysage pour une expérience VR optimale</p>
     <div style="margin-top: 20px; font-size: 16px; opacity: 0.8;">
-        Best experienced with a mobile VR headset
+        Meilleure expérience avec un casque VR mobile
     </div>
 </div>
 
 <div id="gyro-permission">
     <div style="font-size: 48px; margin-bottom: 20px;">🧭</div>
-    <h2>Gyroscope Permission Required</h2>
-    <p>Allow access to the gyroscope to control the camera with your head movements</p>
+    <h2>Permission Gyroscope Requise</h2>
+    <p>Autorisez l'accès au gyroscope pour contrôler la caméra avec les mouvements de votre tête</p>
     <p style="font-size: 14px; opacity: 0.8; margin: 20px 0;">
-        This permission is necessary for an immersive VR experience
+        Cette permission est nécessaire pour une expérience VR immersive
     </p>
-    <button class="control-btn" onclick="requestGyroPermission()">Allow Gyroscope</button>
+    <button class="control-btn" onclick="requestGyroPermission()">Autoriser le Gyroscope</button>
     <button class="control-btn" onclick="skipGyroPermission()" style="margin-top: 10px; opacity: 0.7;">
-        Continue without gyroscope
+        Continuer sans gyroscope
     </button>
 </div>
 
-<button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen">
+<button class="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran">
     ⛶
 </button>
 
@@ -328,11 +333,11 @@
     </div>
     <div class="status-item">
         <div class="status-dot" id="vr-status"></div>
-        <span>VR Mode</span>
+        <span>Mode VR</span>
     </div>
     <div class="status-item">
         <div class="status-dot" id="fullscreen-status"></div>
-        <span>Fullscreen</span>
+        <span>Plein écran</span>
     </div>
 </div>
 
@@ -340,71 +345,69 @@
     <span>Score: <span id="score-value">0</span></span>
 </div>
 
-<div id="game-stats">
-    <span>Speed: <span id="speed-value">0.1</span></span>
-    <span>Growth: <span id="growth-value">0.5</span></span>
+<div id="timer-display">
+    <span>Temps: <span id="time-value">00:00</span></span>
 </div>
 
 <div id="info">
-    <h3>🚀 Mobile VR - Immersive Experience</h3>
+    <h3>🚀 VR Mobile - Expérience Immersive</h3>
     <div style="margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px;">
         <strong>Instructions:</strong>
         <ul style="margin: 5px 0; padding-left: 20px; font-size: 12px;">
-            <li>Place your phone in a VR headset</li>
-            <li>Activate VR mode for split screen</li>
-            <li>Move your head to look around</li>
-            <li>In VR mode, tap the screen to start/stop movement</li>
-            <li>Double tap to exit VR mode</li>
-            <li>Collect objects to increase your speed and size!</li>
+            <li>Placez votre téléphone dans un casque VR</li>
+            <li>Activez le mode VR pour l'écran divisé</li>
+            <li>Bougez la tête pour regarder autour</li>
+            <li>En mode VR, touchez l'écran pour démarrer/arrêter le mouvement</li>
+            <li>Tapez deux fois pour quitter le mode VR</li>
+            <li>Collectez des objets pour augmenter votre vitesse et votre taille !</li>
+            <li>Essayez d'atteindre un score élevé avant la fin du temps !</li>
         </ul>
     </div>
     <div style="font-size: 11px; opacity: 0.7;">
-        Optimized for iPhone and Android
+        Optimisé pour iPhone et Android
     </div>
 </div>
 
 <div id="controls">
-    <button id="vrToggle" class="control-btn">🥽 VR Mode</button>
-    <button id="resetView" class="control-btn">🎯 Recenter</button>
-    <button id="calibrate" class="control-btn">⚙️ Calibrate</button>
+    <button id="vrToggle" class="control-btn">🥽 Mode VR</button>
+    <button id="resetView" class="control-btn">🎯 Recentrer</button>
+    <button id="calibrate" class="control-btn">⚙️ Calibrer</button>
 </div>
 
 <div class="vr-overlay" id="vrOverlay">
-    <h3>VR Mode Activated</h3>
-    <p>Place your phone in the VR headset</p>
-    <p style="font-size: 14px; opacity: 0.8;">Tap once to start/stop movement</p>
-    <p style="font-size: 14px; opacity: 0.8;">Double tap to exit VR mode</p>
+    <h3>Mode VR Activé</h3>
+    <p>Placez votre téléphone dans le casque VR</p>
+    <p style="font-size: 14px; opacity: 0.8;">Tapez une fois pour démarrer/arrêter le mouvement</p>
+    <p style="font-size: 14px; opacity: 0.8;">Tapez deux fois pour quitter le mode VR</p>
 </div>
 
 <div id="movement-indicator">
-    <span>🚶 Movement ON</span>
-</div>
-
-<div id="game-over-screen">
-    <h2>Game Over!</h2>
-    <p>Final Score: <span id="final-score">0</span></p>
-    <p>Max Speed: <span id="final-speed">0</span></p>
-    <p>Max Growth: <span id="final-growth">0</span></p>
-    <button onclick="restartGame()">Play Again</button>
+    <span>🚶 Mouvement ON</span>
 </div>
 
 <div id="canvas-container"></div>
 
+<div id="game-over-overlay">
+    <h2 id="game-over-title"></h2>
+    <p>Score final: <span id="final-score"></span></p>
+    <button class="control-btn" onclick="restartGame()">Rejouer</button>
+</div>
+
 <script>
-    // Advanced Configuration
+    // Configuration avancée
     let scene, camera, renderer;
     let cubes = [], spheres = [], particles = [];
     let raycaster = new THREE.Raycaster();
     let clock = new THREE.Clock();
 
-    // Enhanced VR and Gyroscope variables
+    // Variables VR et gyroscope améliorées
     let isVRMode = false;
     let deviceOrientationEnabled = false;
     let gyroPermissionGranted = false;
     let isFullscreen = false;
     let screenOrientation = 'portrait';
 
-    // Enhanced Calibration System
+    // Système de calibrage amélioré
     let orientationCalibration = {
         alpha: 0,
         beta: 0,
@@ -412,7 +415,7 @@
         isCalibrated: false
     };
 
-    // Gyroscope controls with filtering
+    // Contrôles gyroscope avec filtrage
     let orientationData = {
         alpha: 0,
         beta: 0,
@@ -422,16 +425,16 @@
         smoothGamma: 0
     };
 
-    // Smoothing parameters for camera movements
-    const SMOOTHING_FACTOR = 0.25; // Smoothing factor for gyroscope
-    const ORIENTATION_THRESHOLD = 0.05; // Threshold to apply orientation updates (reduces jerky movements)
+    // Paramètres de lissage pour les mouvements de la caméra
+    const SMOOTHING_FACTOR = 0.25; // Facteur de lissage pour le gyroscope
+    const ORIENTATION_THRESHOLD = 0.05; // Seuil pour appliquer les mises à jour d'orientation (réduit les mouvements brusques)
 
-    // Automatic movement variables in VR
+    // Variables de mouvement automatique en VR
     let isAutoMoving = false;
-    let movementSpeed = 0.1; // Initial movement speed
-    const MOVEMENT_SPEED_INCREMENT = 0.02; // Speed increase per collected object
+    let movementSpeed = 0.1; // Vitesse de déplacement initiale
+    const MOVEMENT_SPEED_INCREMENT = 0.02; // Augmentation de vitesse par objet collecté
 
-    // Variables for floor effect
+    // Variables pour l'effet du sol
     let floorMesh;
     let originalFloorColor;
     let lastCameraPosition = new THREE.Vector3();
@@ -443,12 +446,7 @@
     let playerHeight = 0.5; // Initial player height
     const PLAYER_HEIGHT_INCREMENT = 0.1; // How much player grows per collected item
 
-    // Game Timer variables
-    const GAME_DURATION = 120; // Game duration in seconds (e.g., 120 seconds = 2 minutes)
-    let gameStartTime = 0;
-    let gameEnded = false;
-
-    // Enhanced Materials and Colors
+    // Matériaux et couleurs améliorés
     const colors = [
         0xff6b35, 0x4ecdc4, 0x45b7d1, 0x96ceb4,
         0xfeca57, 0xff9ff3, 0x54a0ff, 0x5f27cd,
@@ -459,23 +457,28 @@
     let frameCount = 0;
     let lastTime = performance.now();
 
+    // Game State Variables
+    let gameStartTime = 0; // Initialized to 0, will be set when VR mode is enabled
+    const GAME_DURATION = 120; // Game duration in seconds (2 minutes)
+    const WIN_SCORE_THRESHOLD = 15; // Score needed to win
+    let gameEnded = false;
+
     init();
     animate();
 
     function init() {
-        console.log('🚀 Initializing VR experience...');
-        resetGame(); // Reset game state on init
+        console.log('🚀 Initialisation de l\'expérience VR...');
 
-        // Scene with enhancements
+        // Scène avec améliorations
         scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0x000015, 30, 150);
 
-        // Camera optimized for mobile VR
+        // Caméra optimisée pour VR mobile
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, playerHeight, 5); // Set initial camera height based on playerHeight
         lastCameraPosition.copy(camera.position);
 
-        // Renderer with optimizations
+        // Renderer avec optimisations
         renderer = new THREE.WebGLRenderer({
             antialias: window.devicePixelRatio < 2,
             powerPreference: "high-performance",
@@ -490,32 +493,32 @@
 
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // Controls setup
+        // Configuration des contrôles
         setupControls();
         setupDeviceOrientation();
         setupFullscreenHandlers();
 
-        // Enhanced Lighting
+        // Éclairage amélioré
         setupLighting();
 
-        // Create world elements
+        // Création du monde
         createFloatingCubes();
         createFloatingSpheres();
         createParticleSystem();
         createEnvironment();
 
-        // Events
+        // Événements
         setupEventListeners();
 
-        // Permission check
+        // Vérification des permissions
         checkGyroPermission();
 
         updateScoreDisplay(); // Initial display of score
-        updateGameStatsDisplay(); // Initial display of game stats
+        updateTimerDisplay(); // Initial display will show 00:00 as gameStartTime is 0
 
-        gameStartTime = clock.getElapsedTime(); // Start game timer
+        resetGame(); // Reset game state for a fresh start
 
-        console.log('✅ Initialization complete');
+        console.log('✅ Initialisation terminée');
     }
 
     function setupControls() {
@@ -548,11 +551,11 @@
     }
 
     function setupLighting() {
-        // Ambient Light
+        // Éclairage ambiant
         const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
         scene.add(ambientLight);
 
-        // Directional Light with shadows
+        // Lumière directionnelle avec ombres
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(10, 10, 5);
         directionalLight.castShadow = true;
@@ -560,7 +563,7 @@
         directionalLight.shadow.mapSize.height = 1024;
         scene.add(directionalLight);
 
-        // Animated colored lights
+        // Lumières colorées animées
         const light1 = new THREE.PointLight(0xff6b35, 1, 25);
         light1.position.set(-8, 6, -8);
         scene.add(light1);
@@ -579,11 +582,11 @@
             typeof DeviceOrientationEvent.requestPermission === 'function') {
             document.getElementById('gyro-permission').style.display = 'flex';
         } else if (window.DeviceOrientationEvent) {
-            // Android or browsers that do not require explicit permission
+            // Android ou navigateurs qui ne nécessitent pas de permission explicite
             setupDeviceOrientation();
             document.getElementById('gyro-permission').style.display = 'none';
         } else {
-            console.warn('⚠️ DeviceOrientation not supported');
+            console.warn('⚠️ DeviceOrientation non supporté');
             updateGyroStatus(false);
         }
     }
@@ -592,20 +595,20 @@
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
                 .then(response => {
-                    console.log('📱 Gyroscope permission response:', response);
+                    console.log('📱 Réponse permission gyroscope:', response);
                     if (response === 'granted') {
                         gyroPermissionGranted = true;
                         document.getElementById('gyro-permission').style.display = 'none';
                         setupDeviceOrientation();
                         updateGyroStatus(true);
                     } else {
-                        console.warn('❌ Gyroscope permission denied');
+                        console.warn('❌ Permission gyroscope refusée');
                         updateGyroStatus(false);
                         document.getElementById('gyro-permission').style.display = 'none';
                     }
                 })
                 .catch(error => {
-                    console.error('❌ Gyroscope permission error:', error);
+                    console.error('❌ Erreur permission gyroscope:', error);
                     updateGyroStatus(false);
                     document.getElementById('gyro-permission').style.display = 'none';
                 });
@@ -623,10 +626,10 @@
         if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', onDeviceOrientation, true);
             deviceOrientationEnabled = true;
-            console.log('✅ Gyroscope configured');
+            console.log('✅ Gyroscope configuré');
             updateGyroStatus(true);
         } else {
-            console.warn('⚠️ DeviceOrientation not available');
+            console.warn('⚠️ DeviceOrientation non disponible');
             updateGyroStatus(false);
         }
     }
@@ -685,7 +688,6 @@
         // camera.rotation.x = pitchRad; // COMMENT OUT THIS LINE
         camera.rotation.z = rollRad;
     }
-
     function normalizeAngle(angle) {
         while (angle > 180) angle -= 360;
         while (angle < -180) angle += 360;
@@ -694,7 +696,7 @@
 
     function calibrateOrientation() {
         if (!deviceOrientationEnabled) {
-            alert('⚠️ Gyroscope not available for calibration');
+            alert('⚠️ Gyroscope non disponible pour la calibration');
             return;
         }
 
@@ -707,11 +709,11 @@
         currentYaw = 0; // Reset total yaw on calibration
         lastAlpha = orientationData.smoothAlpha; // Reset lastAlpha for delta calculation
 
-        console.log('🎯 Orientation calibrated:', orientationCalibration);
+        console.log('🎯 Orientation calibrée:', orientationCalibration);
 
         const btn = document.getElementById('calibrate');
         const originalText = btn.textContent;
-        btn.textContent = '✅ Calibrated';
+        btn.textContent = '✅ Calibré';
         btn.style.background = 'linear-gradient(45deg, #2ed573, #1e90ff)';
 
         setTimeout(() => {
@@ -730,8 +732,8 @@
         isVRMode = !isVRMode;
 
         if (isVRMode) {
-            console.log('🥽 Activating VR mode');
-            vrToggle.textContent = '👁️ Normal Mode';
+            console.log('🥽 Activation du mode VR');
+            vrToggle.textContent = '👁️ Mode Normal';
             vrToggle.classList.add('active');
             info.style.display = 'none';
             controls.style.display = 'none';
@@ -748,9 +750,14 @@
 
             isAutoMoving = true;
             updateMovementIndicator();
+            // Start the game timer only when entering VR mode
+            if (gameStartTime === 0) { // Only set if not already started
+                gameStartTime = clock.getElapsedTime();
+                console.log("Game timer started!");
+            }
         } else {
-            console.log('👁️ Returning to normal mode');
-            vrToggle.textContent = '🥽 VR Mode';
+            console.log('👁️ Retour au mode normal');
+            vrToggle.textContent = '🥽 Mode VR';
             vrToggle.classList.remove('active');
             info.style.display = 'block';
             controls.style.display = 'flex';
@@ -770,10 +777,10 @@
         const indicator = document.getElementById('movement-indicator');
         if (indicator) {
             if (isAutoMoving) {
-                indicator.innerHTML = '🚶 Movement ON';
+                indicator.innerHTML = '🚶 Mouvement ON';
                 indicator.style.opacity = 1;
             } else {
-                indicator.innerHTML = '🛑 Movement OFF';
+                indicator.innerHTML = '🛑 Mouvement OFF';
                 indicator.style.opacity = 0.7;
             }
             indicator.style.display = 'block';
@@ -809,7 +816,7 @@
     }
 
     function resetCameraView() {
-        console.log('🎯 Resetting view');
+        console.log('🎯 Remise à zéro de la vue');
         camera.position.set(0, playerHeight, 5); // Reset to current player height
         camera.rotation.set(0, 0, 0);
         calibrateOrientation();
@@ -838,7 +845,7 @@
 
             if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
                 window.screen.orientation.lock('landscape').catch(e => {
-                    console.warn('Could not lock orientation:', e);
+                    console.warn('Impossible de verrouiller l\'orientation:', e);
                 });
             }
         } else {
@@ -882,9 +889,23 @@
         document.getElementById('score-value').textContent = playerScore;
     }
 
-    function updateGameStatsDisplay() {
-        document.getElementById('speed-value').textContent = movementSpeed.toFixed(2);
-        document.getElementById('growth-value').textContent = playerHeight.toFixed(2);
+    function updateTimerDisplay() {
+        // Only update timer if game has started (gameStartTime > 0) and not ended
+        if (gameStartTime > 0 && !gameEnded) {
+            const elapsedTime = (clock.getElapsedTime() - gameStartTime);
+            const remainingTime = Math.max(0, GAME_DURATION - elapsedTime);
+            const minutes = Math.floor(remainingTime / 60);
+            const seconds = Math.floor(remainingTime % 60);
+            document.getElementById('time-value').textContent =
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            if (remainingTime <= 0 && !gameEnded) {
+                endGame();
+            }
+        } else if (gameStartTime === 0) {
+            // Show 00:00 if timer hasn't started yet
+            document.getElementById('time-value').textContent = '00:00';
+        }
     }
 
     function createFloatingCubes() {
@@ -1012,7 +1033,7 @@
     }
 
     function createEnvironment() {
-        // Floor with enhanced grid
+        // Sol avec grille améliorée
         const gridGeometry = new THREE.PlaneGeometry(120, 120, 60, 60);
         const gridMaterial = new THREE.MeshPhongMaterial({
             color: 0x333366,
@@ -1030,7 +1051,7 @@
         scene.add(floorMesh);
         originalFloorColor = new THREE.Color(0x333366);
 
-        // Enhanced starry sky
+        // Ciel étoilé amélioré
         const starsGeometry = new THREE.BufferGeometry();
         const starPositions = new Float32Array(1500 * 3);
         const starColors = new Float32Array(1500 * 3);
@@ -1068,6 +1089,8 @@
 
         let lastTapTime = 0;
         window.addEventListener('touchend', (event) => {
+            if (gameEnded) return; // Prevent interaction if game has ended
+
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTapTime;
 
@@ -1093,21 +1116,22 @@
         });
 
         window.addEventListener('click', (event) => {
+            if (gameEnded) return; // Prevent interaction if game has ended
             if (!isVRMode) { // Only allow click interaction outside VR mode
                 checkIntersection(event.clientX, event.clientY);
             }
         });
 
         window.addEventListener('orientationchange', () => {
-            console.log('📱 Orientation changed');
+            console.log('📱 Changement d\'orientation');
             setTimeout(detectScreenOrientation, 300);
         });
 
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                console.log('⏸️ Application in background');
+                console.log('⏸️ Application en arrière-plan');
             } else {
-                console.log('▶️ Application in foreground');
+                console.log('▶️ Application au premier plan');
             }
         });
     }
@@ -1116,7 +1140,8 @@
         requestAnimationFrame(animate);
 
         if (gameEnded) {
-            return; // Stop animation loop if game has ended
+            renderer.render(scene, camera); // Still render the scene
+            return; // Stop game logic updates
         }
 
         frameCount++;
@@ -1127,17 +1152,12 @@
             lastTime = currentTime;
         }
 
-        // Check game timer
-        const elapsedTime = clock.getElapsedTime();
-        if (elapsedTime - gameStartTime >= GAME_DURATION) {
-            endGame();
-            return;
-        }
-
-
         if (isVRMode && isAutoMoving) {
             moveCameraForward();
         }
+
+        // Update game timer (will only count down if gameStartTime > 0)
+        updateTimerDisplay();
 
         // Check for collisions with collectibles
         checkCollisions();
@@ -1332,12 +1352,11 @@
     }
     const playerSphereGeo = new THREE.SphereGeometry(playerHeight * 0.3, 16, 16);
     const playerSphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
-    // playerSphereMesh is not needed for the collision check but kept here if it was used for visual debugging previously.
-    // const playerSphereMesh = new THREE.Mesh(playerSphereGeo, playerSphereMat);
-    // scene.add(playerSphereMesh);
+    const playerSphereMesh = new THREE.Mesh(playerSphereGeo, playerSphereMat);
+    scene.add(playerSphereMesh);
 
     function checkCollisions() {
-        // Only check collisions if auto-moving in VR mode
+        // Only check collisions if auto-moving in VR mode and game is not ended
         if (!isVRMode || !isAutoMoving || gameEnded) return;
 
         const playerBoundingSphere = new THREE.Sphere(camera.position, playerHeight * 0.3); // Adjust multiplier as needed
@@ -1380,15 +1399,21 @@
         // Increase speed
         movementSpeed += MOVEMENT_SPEED_INCREMENT;
         console.log('Current speed:', movementSpeed);
-        updateGameStatsDisplay();
 
         // Increase player height
         playerHeight += PLAYER_HEIGHT_INCREMENT;
         camera.position.y = playerHeight;
         console.log('Current height:', playerHeight);
-        updateGameStatsDisplay();
 
         const originalSizeOrRadius = object.geometry.type === 'BoxGeometry' ? object.userData.originalSize : object.userData.originalRadius;
+
+        // Remove object from scene and its respective array (already done above, but keeping for clarity if refactoring)
+        // scene.remove(object);
+        // if (object.geometry.type === 'BoxGeometry') {
+        //     cubes = cubes.filter(c => c !== object);
+        // } else if (object.geometry.type === 'SphereGeometry') {
+        //     spheres = spheres.filter(s => s !== object);
+        // }
 
         // Respawn object after a short delay, passing the original size/radius
         setTimeout(() => {
@@ -1522,7 +1547,7 @@
         } else {
             if (screenOrientation !== 'landscape') {
                 screenOrientation = 'landscape';
-                console.log('📱 Orientation: landscape');
+                console.log('📱 Orientation: paysage');
                 document.getElementById('orientation-warning').style.display = 'none';
             }
         }
@@ -1532,72 +1557,95 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        console.log('📱 Resizing:', window.innerWidth, 'x', window.innerHeight);
+        console.log('📱 Redimensionnement:', window.innerWidth, 'x', window.innerHeight);
 
         detectScreenOrientation();
     }
 
+    // Game End Conditions and Restart Logic
     function endGame() {
         gameEnded = true;
         isAutoMoving = false; // Stop movement
-        console.log('Game Over!');
 
-        // Display game over screen
-        document.getElementById('game-over-screen').style.display = 'flex';
-        document.getElementById('final-score').textContent = playerScore;
-        document.getElementById('final-speed').textContent = movementSpeed.toFixed(2);
-        document.getElementById('final-growth').textContent = playerHeight.toFixed(2);
+        const gameOverOverlay = document.getElementById('game-over-overlay');
+        const gameOverTitle = document.getElementById('game-over-title');
+        const finalScoreDisplay = document.getElementById('final-score');
 
-        // Hide other UI elements
-        document.getElementById('info').style.display = 'none';
-        document.getElementById('controls').style.display = 'none';
-        document.getElementById('status-indicator').style.display = 'none';
-        document.getElementById('score-display').style.display = 'none';
-        document.getElementById('game-stats').style.display = 'none';
-        document.getElementById('movement-indicator').style.display = 'none';
-        document.getElementById('fullscreen-btn').style.display = 'none'; // Hide fullscreen button
+        finalScoreDisplay.textContent = playerScore;
+
+        if (playerScore >= WIN_SCORE_THRESHOLD) {
+            gameOverTitle.textContent = '🎉 VICTOIRE ! 🎉';
+            gameOverTitle.classList.remove('lose');
+        } else {
+            gameOverTitle.textContent = 'Game Over !';
+            gameOverTitle.classList.add('lose');
+        }
+
+        gameOverOverlay.style.display = 'flex';
+        console.log('Game Over! Final Score:', playerScore);
     }
 
     function restartGame() {
-        // Hide game over screen
-        document.getElementById('game-over-screen').style.display = 'none';
+        // Hide game over overlay
+        document.getElementById('game-over-overlay').style.display = 'none';
 
-        // Reset game variables
+        // Reset game state variables
         playerScore = 0;
         movementSpeed = 0.1;
         playerHeight = 0.5;
         gameEnded = false;
-        gameStartTime = clock.getElapsedTime(); // Reset game timer
-        isAutoMoving = false; // Start with movement off
+        gameStartTime = 0; // Reset gameStartTime so timer waits for VR mode
 
-        // Clear existing objects
-        while (cubes.length > 0) {
-            scene.remove(cubes.pop());
-        }
-        while (spheres.length > 0) {
-            scene.remove(spheres.pop());
-        }
-
-        // Recreate objects
+        // Clear existing collectibles and re-create them
+        cubes.forEach(cube => scene.remove(cube));
+        spheres.forEach(sphere => scene.remove(sphere));
+        cubes = [];
+        spheres = [];
         createFloatingCubes();
         createFloatingSpheres();
 
-        // Reset camera position and rotation
+        // Reset camera position and orientation
         resetCameraView();
+        camera.position.set(0, playerHeight, 5);
+        lastCameraPosition.copy(camera.position);
 
-        // Show relevant UI elements
-        document.getElementById('info').style.display = 'block';
-        document.getElementById('controls').style.display = 'flex';
-        document.getElementById('status-indicator').style.display = 'flex';
-        document.getElementById('score-display').style.display = 'flex';
-        document.getElementById('game-stats').style.display = 'flex';
-        document.getElementById('fullscreen-btn').style.display = 'block'; // Show fullscreen button
-
+        // Reset UI displays
         updateScoreDisplay();
-        updateGameStatsDisplay();
-        updateMovementIndicator();
-        updateVRStatus(false); // Ensure VR mode is off initially
-        updateGyroStatus(gyroPermissionGranted); // Restore gyroscope status
+        updateTimerDisplay(); // Will now show 00:00
+
+        // Ensure movement is off until VR mode is re-entered
+        isAutoMoving = false;
+        updateMovementIndicator(); // Update indicator to show movement OFF
+
+        // If currently in VR mode, re-launch the timer
+        if (isVRMode) {
+            gameStartTime = clock.getElapsedTime();
+            isAutoMoving = true;
+            updateMovementIndicator();
+        }
+
+
+        console.log('Game Restarted!');
+    }
+
+    function resetGame() {
+        // This function is called once at init to ensure a clean starting state
+        gameStartTime = 0; // Ensures timer doesn't start until VR mode is entered
+        playerScore = 0;
+        movementSpeed = 0.1;
+        playerHeight = 0.5;
+        gameEnded = false;
+
+        // Ensure all UI elements reflect the reset state
+        updateScoreDisplay();
+        updateTimerDisplay();
+        document.getElementById('game-over-overlay').style.display = 'none';
+
+        // Ensure initial collectibles are present
+        if (cubes.length === 0 && spheres.length === 0) {
+            createFloatingCubes();
+            createFloatingSpheres();
+        }
     }
 
 
@@ -1605,7 +1653,7 @@
     updateVRStatus(false);
     updateFullscreenStatus();
 
-    console.log('🎮 VR Application ready!');
+    console.log('🎮 Application VR prête !');
 </script>
 </body>
 </html>
