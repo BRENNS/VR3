@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Enhanced Mobile VR Experience</title>
+    <title>Expérience VR Mobile Améliorée</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body {
@@ -219,7 +219,7 @@
             background: rgba(255,255,255,0.2);
         }
 
-        /* Movement Indicator */
+        /* Indicateur de mouvement */
         #movement-indicator {
             position: absolute;
             bottom: 10px;
@@ -231,11 +231,11 @@
             border-radius: 20px;
             font-size: 12px;
             z-index: 10;
-            display: none; /* Hidden by default */
+            display: none; /* Masqué par défaut */
             transition: opacity 0.3s ease;
         }
 
-        #score-display, #game-stats {
+        #score-display {
             position: absolute;
             top: 60px;
             right: 10px;
@@ -246,78 +246,35 @@
             border-radius: 20px;
             font-size: 14px;
             display: flex;
-            flex-direction: column;
-            align-items: flex-start;
+            align-items: center;
             gap: 5px;
         }
-
-        #game-stats {
-            top: 105px; /* Position below score display */
-        }
-
-        #game-over-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            display: none; /* Hidden by default */
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 1002;
-            text-align: center;
-            font-size: 28px;
-            backdrop-filter: blur(5px);
-        }
-
-        #game-over-screen button {
-            margin-top: 30px;
-            padding: 15px 30px;
-            font-size: 18px;
-            background: linear-gradient(45deg, #4ecdc4, #44a08d);
-            border: none;
-            border-radius: 30px;
-            color: white;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.4);
-            transition: all 0.3s ease;
-        }
-
-        #game-over-screen button:hover {
-            background: linear-gradient(45deg, #3aa79d, #388a7b);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(78, 205, 196, 0.6);
-        }
-
     </style>
 </head>
 <body>
 <div id="orientation-warning">
     <div style="font-size: 48px; margin-bottom: 20px;">📱</div>
-    <h2>Rotate your phone</h2>
-    <p>Switch to landscape mode for optimal VR experience</p>
+    <h2>Tournez votre téléphone</h2>
+    <p>Basculez en mode paysage pour une expérience VR optimale</p>
     <div style="margin-top: 20px; font-size: 16px; opacity: 0.8;">
-        Best experienced with a mobile VR headset
+        Meilleure expérience avec un casque VR mobile
     </div>
 </div>
 
 <div id="gyro-permission">
     <div style="font-size: 48px; margin-bottom: 20px;">🧭</div>
-    <h2>Gyroscope Permission Required</h2>
-    <p>Allow access to the gyroscope to control the camera with your head movements</p>
+    <h2>Permission Gyroscope Requise</h2>
+    <p>Autorisez l'accès au gyroscope pour contrôler la caméra avec les mouvements de votre tête</p>
     <p style="font-size: 14px; opacity: 0.8; margin: 20px 0;">
-        This permission is necessary for an immersive VR experience
+        Cette permission est nécessaire pour une expérience VR immersive
     </p>
-    <button class="control-btn" onclick="requestGyroPermission()">Allow Gyroscope</button>
+    <button class="control-btn" onclick="requestGyroPermission()">Autoriser le Gyroscope</button>
     <button class="control-btn" onclick="skipGyroPermission()" style="margin-top: 10px; opacity: 0.7;">
-        Continue without gyroscope
+        Continuer sans gyroscope
     </button>
 </div>
 
-<button class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen">
+<button class="fullscreen-btn" onclick="toggleFullscreen()" title="Plein écran">
     ⛶
 </button>
 
@@ -328,11 +285,11 @@
     </div>
     <div class="status-item">
         <div class="status-dot" id="vr-status"></div>
-        <span>VR Mode</span>
+        <span>Mode VR</span>
     </div>
     <div class="status-item">
         <div class="status-dot" id="fullscreen-status"></div>
-        <span>Fullscreen</span>
+        <span>Plein écran</span>
     </div>
 </div>
 
@@ -340,71 +297,58 @@
     <span>Score: <span id="score-value">0</span></span>
 </div>
 
-<div id="game-stats">
-    <span>Speed: <span id="speed-value">0.1</span></span>
-    <span>Growth: <span id="growth-value">0.5</span></span>
-</div>
-
 <div id="info">
-    <h3>🚀 Mobile VR - Immersive Experience</h3>
+    <h3>🚀 VR Mobile - Expérience Immersive</h3>
     <div style="margin: 10px 0; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 8px;">
         <strong>Instructions:</strong>
         <ul style="margin: 5px 0; padding-left: 20px; font-size: 12px;">
-            <li>Place your phone in a VR headset</li>
-            <li>Activate VR mode for split screen</li>
-            <li>Move your head to look around</li>
-            <li>In VR mode, tap the screen to start/stop movement</li>
-            <li>Double tap to exit VR mode</li>
-            <li>Collect objects to increase your speed and size!</li>
+            <li>Placez votre téléphone dans un casque VR</li>
+            <li>Activez le mode VR pour l'écran divisé</li>
+            <li>Bougez la tête pour regarder autour</li>
+            <li>En mode VR, touchez l'écran pour démarrer/arrêter le mouvement</li>
+            <li>Tapez deux fois pour quitter le mode VR</li>
+            <li>Collectez des objets pour augmenter votre vitesse et votre taille !</li>
         </ul>
     </div>
     <div style="font-size: 11px; opacity: 0.7;">
-        Optimized for iPhone and Android
+        Optimisé pour iPhone et Android
     </div>
 </div>
 
 <div id="controls">
-    <button id="vrToggle" class="control-btn">🥽 VR Mode</button>
-    <button id="resetView" class="control-btn">🎯 Recenter</button>
-    <button id="calibrate" class="control-btn">⚙️ Calibrate</button>
+    <button id="vrToggle" class="control-btn">🥽 Mode VR</button>
+    <button id="resetView" class="control-btn">🎯 Recentrer</button>
+    <button id="calibrate" class="control-btn">⚙️ Calibrer</button>
 </div>
 
 <div class="vr-overlay" id="vrOverlay">
-    <h3>VR Mode Activated</h3>
-    <p>Place your phone in the VR headset</p>
-    <p style="font-size: 14px; opacity: 0.8;">Tap once to start/stop movement</p>
-    <p style="font-size: 14px; opacity: 0.8;">Double tap to exit VR mode</p>
+    <h3>Mode VR Activé</h3>
+    <p>Placez votre téléphone dans le casque VR</p>
+    <p style="font-size: 14px; opacity: 0.8;">Tapez une fois pour démarrer/arrêter le mouvement</p>
+    <p style="font-size: 14px; opacity: 0.8;">Tapez deux fois pour quitter le mode VR</p>
 </div>
 
 <div id="movement-indicator">
-    <span>🚶 Movement ON</span>
-</div>
-
-<div id="game-over-screen">
-    <h2>Game Over!</h2>
-    <p>Final Score: <span id="final-score">0</span></p>
-    <p>Max Speed: <span id="final-speed">0</span></p>
-    <p>Max Growth: <span id="final-growth">0</span></p>
-    <button onclick="restartGame()">Play Again</button>
+    <span>🚶 Mouvement ON</span>
 </div>
 
 <div id="canvas-container"></div>
 
 <script>
-    // Advanced Configuration
+    // Configuration avancée
     let scene, camera, renderer;
     let cubes = [], spheres = [], particles = [];
     let raycaster = new THREE.Raycaster();
     let clock = new THREE.Clock();
 
-    // Enhanced VR and Gyroscope variables
+    // Variables VR et gyroscope améliorées
     let isVRMode = false;
     let deviceOrientationEnabled = false;
     let gyroPermissionGranted = false;
     let isFullscreen = false;
     let screenOrientation = 'portrait';
 
-    // Enhanced Calibration System
+    // Système de calibrage amélioré
     let orientationCalibration = {
         alpha: 0,
         beta: 0,
@@ -412,7 +356,7 @@
         isCalibrated: false
     };
 
-    // Gyroscope controls with filtering
+    // Contrôles gyroscope avec filtrage
     let orientationData = {
         alpha: 0,
         beta: 0,
@@ -422,16 +366,16 @@
         smoothGamma: 0
     };
 
-    // Smoothing parameters for camera movements
-    const SMOOTHING_FACTOR = 0.25; // Smoothing factor for gyroscope
-    const ORIENTATION_THRESHOLD = 0.05; // Threshold to apply orientation updates (reduces jerky movements)
+    // Paramètres de lissage pour les mouvements de la caméra
+    const SMOOTHING_FACTOR = 0.25; // Facteur de lissage pour le gyroscope
+    const ORIENTATION_THRESHOLD = 0.05; // Seuil pour appliquer les mises à jour d'orientation (réduit les mouvements brusques)
 
-    // Automatic movement variables in VR
+    // Variables de mouvement automatique en VR
     let isAutoMoving = false;
-    let movementSpeed = 0.1; // Initial movement speed
-    const MOVEMENT_SPEED_INCREMENT = 0.02; // Speed increase per collected object
+    let movementSpeed = 0.1; // Vitesse de déplacement initiale
+    const MOVEMENT_SPEED_INCREMENT = 0.02; // Augmentation de vitesse par objet collecté
 
-    // Variables for floor effect
+    // Variables pour l'effet du sol
     let floorMesh;
     let originalFloorColor;
     let lastCameraPosition = new THREE.Vector3();
@@ -443,12 +387,7 @@
     let playerHeight = 0.5; // Initial player height
     const PLAYER_HEIGHT_INCREMENT = 0.1; // How much player grows per collected item
 
-    // Game Timer variables
-    const GAME_DURATION = 120; // Game duration in seconds (e.g., 120 seconds = 2 minutes)
-    let gameStartTime = 0;
-    let gameEnded = false;
-
-    // Enhanced Materials and Colors
+    // Matériaux et couleurs améliorés
     const colors = [
         0xff6b35, 0x4ecdc4, 0x45b7d1, 0x96ceb4,
         0xfeca57, 0xff9ff3, 0x54a0ff, 0x5f27cd,
@@ -459,23 +398,29 @@
     let frameCount = 0;
     let lastTime = performance.now();
 
+    // Keyboard input state
+    let keyboardState = {
+        q: false,
+        d: false
+    };
+    const keyboardRotationSpeed = 1.5; // Degrees per frame
+
     init();
     animate();
 
     function init() {
-        console.log('🚀 Initializing VR experience...');
-        resetGame(); // Reset game state on init
+        console.log('🚀 Initialisation de l\'expérience VR...');
 
-        // Scene with enhancements
+        // Scène avec améliorations
         scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0x000015, 30, 150);
 
-        // Camera optimized for mobile VR
+        // Caméra optimisée pour VR mobile
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, playerHeight, 5); // Set initial camera height based on playerHeight
         lastCameraPosition.copy(camera.position);
 
-        // Renderer with optimizations
+        // Renderer avec optimisations
         renderer = new THREE.WebGLRenderer({
             antialias: window.devicePixelRatio < 2,
             powerPreference: "high-performance",
@@ -490,32 +435,29 @@
 
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // Controls setup
+        // Configuration des contrôles
         setupControls();
         setupDeviceOrientation();
         setupFullscreenHandlers();
 
-        // Enhanced Lighting
+        // Éclairage amélioré
         setupLighting();
 
-        // Create world elements
+        // Création du monde
         createFloatingCubes();
         createFloatingSpheres();
         createParticleSystem();
         createEnvironment();
 
-        // Events
+        // Événements
         setupEventListeners();
 
-        // Permission check
+        // Vérification des permissions
         checkGyroPermission();
 
         updateScoreDisplay(); // Initial display of score
-        updateGameStatsDisplay(); // Initial display of game stats
 
-        gameStartTime = clock.getElapsedTime(); // Start game timer
-
-        console.log('✅ Initialization complete');
+        console.log('✅ Initialisation terminée');
     }
 
     function setupControls() {
@@ -548,11 +490,11 @@
     }
 
     function setupLighting() {
-        // Ambient Light
+        // Éclairage ambiant
         const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
         scene.add(ambientLight);
 
-        // Directional Light with shadows
+        // Lumière directionnelle avec ombres
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(10, 10, 5);
         directionalLight.castShadow = true;
@@ -560,7 +502,7 @@
         directionalLight.shadow.mapSize.height = 1024;
         scene.add(directionalLight);
 
-        // Animated colored lights
+        // Lumières colorées animées
         const light1 = new THREE.PointLight(0xff6b35, 1, 25);
         light1.position.set(-8, 6, -8);
         scene.add(light1);
@@ -579,11 +521,11 @@
             typeof DeviceOrientationEvent.requestPermission === 'function') {
             document.getElementById('gyro-permission').style.display = 'flex';
         } else if (window.DeviceOrientationEvent) {
-            // Android or browsers that do not require explicit permission
+            // Android ou navigateurs qui ne nécessitent pas de permission explicite
             setupDeviceOrientation();
             document.getElementById('gyro-permission').style.display = 'none';
         } else {
-            console.warn('⚠️ DeviceOrientation not supported');
+            console.warn('⚠️ DeviceOrientation non supporté');
             updateGyroStatus(false);
         }
     }
@@ -592,20 +534,20 @@
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
                 .then(response => {
-                    console.log('📱 Gyroscope permission response:', response);
+                    console.log('📱 Réponse permission gyroscope:', response);
                     if (response === 'granted') {
                         gyroPermissionGranted = true;
                         document.getElementById('gyro-permission').style.display = 'none';
                         setupDeviceOrientation();
                         updateGyroStatus(true);
                     } else {
-                        console.warn('❌ Gyroscope permission denied');
+                        console.warn('❌ Permission gyroscope refusée');
                         updateGyroStatus(false);
                         document.getElementById('gyro-permission').style.display = 'none';
                     }
                 })
                 .catch(error => {
-                    console.error('❌ Gyroscope permission error:', error);
+                    console.error('❌ Erreur permission gyroscope:', error);
                     updateGyroStatus(false);
                     document.getElementById('gyro-permission').style.display = 'none';
                 });
@@ -623,10 +565,10 @@
         if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', onDeviceOrientation, true);
             deviceOrientationEnabled = true;
-            console.log('✅ Gyroscope configured');
+            console.log('✅ Gyroscope configuré');
             updateGyroStatus(true);
         } else {
-            console.warn('⚠️ DeviceOrientation not available');
+            console.warn('⚠️ DeviceOrientation non disponible');
             updateGyroStatus(false);
         }
     }
@@ -669,23 +611,21 @@
     }
 
     function updateCameraFromOrientation() {
-        if (!deviceOrientationEnabled) return;
+        if (!deviceOrientationEnabled) {
+            // If device orientation is not enabled, camera rotation is handled by keyboard input only
+            return;
+        }
 
         // Use currentYaw for Y-axis rotation (yaw)
         const yawRad = THREE.MathUtils.degToRad(currentYaw - orientationCalibration.alpha);
-
-        // REMOVE OR COMMENT OUT THIS LINE TO DISABLE UP/DOWN LOOKING (PITCH)
-        // const pitchRad = THREE.MathUtils.degToRad(orientationData.smoothBeta - orientationCalibration.beta);
 
         // Use smoothed gamma for Z-axis rotation (roll), with reduced effect
         const rollRad = -THREE.MathUtils.degToRad(orientationData.smoothGamma - orientationCalibration.gamma) * 0.2;
 
         camera.rotation.order = 'YXZ'; // Yaw (Y), Pitch (X), Roll (Z)
         camera.rotation.y = yawRad;
-        // camera.rotation.x = pitchRad; // COMMENT OUT THIS LINE
         camera.rotation.z = rollRad;
     }
-
     function normalizeAngle(angle) {
         while (angle > 180) angle -= 360;
         while (angle < -180) angle += 360;
@@ -694,7 +634,7 @@
 
     function calibrateOrientation() {
         if (!deviceOrientationEnabled) {
-            alert('⚠️ Gyroscope not available for calibration');
+            alert('⚠️ Gyroscope non disponible pour la calibration');
             return;
         }
 
@@ -707,11 +647,11 @@
         currentYaw = 0; // Reset total yaw on calibration
         lastAlpha = orientationData.smoothAlpha; // Reset lastAlpha for delta calculation
 
-        console.log('🎯 Orientation calibrated:', orientationCalibration);
+        console.log('🎯 Orientation calibrée:', orientationCalibration);
 
         const btn = document.getElementById('calibrate');
         const originalText = btn.textContent;
-        btn.textContent = '✅ Calibrated';
+        btn.textContent = '✅ Calibré';
         btn.style.background = 'linear-gradient(45deg, #2ed573, #1e90ff)';
 
         setTimeout(() => {
@@ -730,8 +670,8 @@
         isVRMode = !isVRMode;
 
         if (isVRMode) {
-            console.log('🥽 Activating VR mode');
-            vrToggle.textContent = '👁️ Normal Mode';
+            console.log('🥽 Activation du mode VR');
+            vrToggle.textContent = '👁️ Mode Normal';
             vrToggle.classList.add('active');
             info.style.display = 'none';
             controls.style.display = 'none';
@@ -749,8 +689,8 @@
             isAutoMoving = true;
             updateMovementIndicator();
         } else {
-            console.log('👁️ Returning to normal mode');
-            vrToggle.textContent = '🥽 VR Mode';
+            console.log('👁️ Retour au mode normal');
+            vrToggle.textContent = '🥽 Mode VR';
             vrToggle.classList.remove('active');
             info.style.display = 'block';
             controls.style.display = 'flex';
@@ -770,10 +710,10 @@
         const indicator = document.getElementById('movement-indicator');
         if (indicator) {
             if (isAutoMoving) {
-                indicator.innerHTML = '🚶 Movement ON';
+                indicator.innerHTML = '🚶 Mouvement ON';
                 indicator.style.opacity = 1;
             } else {
-                indicator.innerHTML = '🛑 Movement OFF';
+                indicator.innerHTML = '🛑 Mouvement OFF';
                 indicator.style.opacity = 0.7;
             }
             indicator.style.display = 'block';
@@ -781,11 +721,13 @@
     }
 
     function renderStereo() {
-        if (!isVRMode) {
-            renderer.render(scene, camera);
-            return;
-        }
+        // If VR mode is active, render a single, wide view instead of split-screen
+        renderer.setScissorTest(false); // Disable scissor test for full-screen render
+        renderer.setViewport(0, 0, window.innerWidth, window.innerHeight); // Set viewport to full window
+        renderer.render(scene, camera);
+        return;
 
+        // Existing code for non-VR mode (or if you decide to re-introduce split-screen for a different VR setup)
         const width = window.innerWidth;
         const height = window.innerHeight;
         const eyeSeparation = 0.032; // Standard eye separation
@@ -807,9 +749,8 @@
         // Reset camera position for next frame
         camera.position.x -= eyeSeparation;
     }
-
     function resetCameraView() {
-        console.log('🎯 Resetting view');
+        console.log('🎯 Remise à zéro de la vue');
         camera.position.set(0, playerHeight, 5); // Reset to current player height
         camera.rotation.set(0, 0, 0);
         calibrateOrientation();
@@ -838,7 +779,7 @@
 
             if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
                 window.screen.orientation.lock('landscape').catch(e => {
-                    console.warn('Could not lock orientation:', e);
+                    console.warn('Impossible de verrouiller l\'orientation:', e);
                 });
             }
         } else {
@@ -882,13 +823,9 @@
         document.getElementById('score-value').textContent = playerScore;
     }
 
-    function updateGameStatsDisplay() {
-        document.getElementById('speed-value').textContent = movementSpeed.toFixed(2);
-        document.getElementById('growth-value').textContent = playerHeight.toFixed(2);
-    }
-
     function createFloatingCubes() {
-        for (let i = 0; i < 20; i++) {
+        // Increased number of cubes and spread
+        for (let i = 0; i < 40; i++) { // Increased from 20 to 40
             const size = Math.random() * 1.5 + 1.0;
             const geometry = new THREE.BoxGeometry(size, size, size);
 
@@ -903,11 +840,11 @@
             cube.castShadow = true;
             cube.receiveShadow = true;
 
-            // Place objects at ground level (y slightly above 0)
+            // Place objects with increased spread
             cube.position.set(
-                (Math.random() - 0.5) * 40,
+                (Math.random() - 0.5) * 80, // Increased spread from 40 to 80
                 size / 2, // Half of its size to sit on the floor
-                (Math.random() - 0.5) * 40
+                (Math.random() - 0.5) * 80  // Increased spread from 40 to 80
             );
 
             cube.rotation.set(
@@ -936,7 +873,8 @@
     }
 
     function createFloatingSpheres() {
-        for (let i = 0; i < 15; i++) {
+        // Increased number of spheres and spread
+        for (let i = 0; i < 30; i++) { // Increased from 15 to 30
             const radius = Math.random() * 1.0 + 0.7; // Smaller spheres
             const geometry = new THREE.SphereGeometry(radius, 16, 16);
 
@@ -953,11 +891,11 @@
             sphere.castShadow = true;
             sphere.receiveShadow = true;
 
-            // Place objects at ground level
+            // Place objects with increased spread
             sphere.position.set(
-                (Math.random() - 0.5) * 35,
+                (Math.random() - 0.5) * 70, // Increased spread from 35 to 70
                 radius, // Half of its size (radius) to sit on the floor
-                (Math.random() - 0.5) * 35
+                (Math.random() - 0.5) * 70  // Increased spread from 35 to 70
             );
 
             sphere.userData = {
@@ -1012,7 +950,7 @@
     }
 
     function createEnvironment() {
-        // Floor with enhanced grid
+        // Sol avec grille améliorée
         const gridGeometry = new THREE.PlaneGeometry(120, 120, 60, 60);
         const gridMaterial = new THREE.MeshPhongMaterial({
             color: 0x333366,
@@ -1030,7 +968,7 @@
         scene.add(floorMesh);
         originalFloorColor = new THREE.Color(0x333366);
 
-        // Enhanced starry sky
+        // Ciel étoilé amélioré
         const starsGeometry = new THREE.BufferGeometry();
         const starPositions = new Float32Array(1500 * 3);
         const starColors = new Float32Array(1500 * 3);
@@ -1098,26 +1036,43 @@
             }
         });
 
+        // Keyboard event listeners for Q and D
+        window.addEventListener('keydown', (event) => {
+            if (isVRMode) {
+                if (event.key === 'q' || event.key === 'Q') {
+                    keyboardState.q = true;
+                } else if (event.key === 'd' || event.key === 'D') {
+                    keyboardState.d = true;
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            if (isVRMode) {
+                if (event.key === 'q' || event.key === 'Q') {
+                    keyboardState.q = false;
+                } else if (event.key === 'd' || event.key === 'D') {
+                    keyboardState.d = false;
+                }
+            }
+        });
+
         window.addEventListener('orientationchange', () => {
-            console.log('📱 Orientation changed');
+            console.log('📱 Changement d\'orientation');
             setTimeout(detectScreenOrientation, 300);
         });
 
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                console.log('⏸️ Application in background');
+                console.log('⏸️ Application en arrière-plan');
             } else {
-                console.log('▶️ Application in foreground');
+                console.log('▶️ Application au premier plan');
             }
         });
     }
 
     function animate() {
         requestAnimationFrame(animate);
-
-        if (gameEnded) {
-            return; // Stop animation loop if game has ended
-        }
 
         frameCount++;
         const currentTime = performance.now();
@@ -1127,22 +1082,30 @@
             lastTime = currentTime;
         }
 
-        // Check game timer
-        const elapsedTime = clock.getElapsedTime();
-        if (elapsedTime - gameStartTime >= GAME_DURATION) {
-            endGame();
-            return;
-        }
-
-
-        if (isVRMode && isAutoMoving) {
-            moveCameraForward();
+        if (isVRMode) {
+            handleKeyboardInput(); // Handle keyboard input for rotation
+            if (isAutoMoving) {
+                moveCameraForward();
+            }
         }
 
         // Check for collisions with collectibles
         checkCollisions();
 
         render();
+    }
+
+    function handleKeyboardInput() {
+        if (isVRMode) { // Only allow keyboard rotation in VR mode
+            if (keyboardState.q) {
+                currentYaw += keyboardRotationSpeed; // Q turns RIGHT
+            }
+            if (keyboardState.d) {
+                currentYaw -= keyboardRotationSpeed; // D turns LEFT
+            }
+            // Apply the currentYaw to the camera's Y rotation
+            camera.rotation.y = THREE.MathUtils.degToRad(currentYaw);
+        }
     }
 
     function moveCameraForward() {
@@ -1332,13 +1295,12 @@
     }
     const playerSphereGeo = new THREE.SphereGeometry(playerHeight * 0.3, 16, 16);
     const playerSphereMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
-    // playerSphereMesh is not needed for the collision check but kept here if it was used for visual debugging previously.
-    // const playerSphereMesh = new THREE.Mesh(playerSphereGeo, playerSphereMat);
-    // scene.add(playerSphereMesh);
+    const playerSphereMesh = new THREE.Mesh(playerSphereGeo, playerSphereMat);
+    scene.add(playerSphereMesh);
 
     function checkCollisions() {
         // Only check collisions if auto-moving in VR mode
-        if (!isVRMode || !isAutoMoving || gameEnded) return;
+        if (!isVRMode || !isAutoMoving) return;
 
         const playerBoundingSphere = new THREE.Sphere(camera.position, playerHeight * 0.3); // Adjust multiplier as needed
 
@@ -1380,13 +1342,11 @@
         // Increase speed
         movementSpeed += MOVEMENT_SPEED_INCREMENT;
         console.log('Current speed:', movementSpeed);
-        updateGameStatsDisplay();
 
         // Increase player height
         playerHeight += PLAYER_HEIGHT_INCREMENT;
         camera.position.y = playerHeight;
         console.log('Current height:', playerHeight);
-        updateGameStatsDisplay();
 
         const originalSizeOrRadius = object.geometry.type === 'BoxGeometry' ? object.userData.originalSize : object.userData.originalRadius;
 
@@ -1455,11 +1415,11 @@
         }
 
         if (newObject) {
-            // Respawn at a new random location within the environment boundaries
+            // Respawn at a new random location within the environment boundaries, with increased spread
             newObject.position.set(
-                (Math.random() - 0.5) * 40,
+                (Math.random() - 0.5) * 80, // Increased spread from 40 to 80
                 newObject.position.y, // Maintain its original height based on its type
-                (Math.random() - 0.5) * 40
+                (Math.random() - 0.5) * 80  // Increased spread from 40 to 80
             );
             newObject.userData.originalPosition.copy(newObject.position); // Update original position for floating/pulsing effects if applicable
             scene.add(newObject);
@@ -1522,7 +1482,7 @@
         } else {
             if (screenOrientation !== 'landscape') {
                 screenOrientation = 'landscape';
-                console.log('📱 Orientation: landscape');
+                console.log('📱 Orientation: paysage');
                 document.getElementById('orientation-warning').style.display = 'none';
             }
         }
@@ -1532,80 +1492,16 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        console.log('📱 Resizing:', window.innerWidth, 'x', window.innerHeight);
+        console.log('📱 Redimensionnement:', window.innerWidth, 'x', window.innerHeight);
 
         detectScreenOrientation();
     }
-
-    function endGame() {
-        gameEnded = true;
-        isAutoMoving = false; // Stop movement
-        console.log('Game Over!');
-
-        // Display game over screen
-        document.getElementById('game-over-screen').style.display = 'flex';
-        document.getElementById('final-score').textContent = playerScore;
-        document.getElementById('final-speed').textContent = movementSpeed.toFixed(2);
-        document.getElementById('final-growth').textContent = playerHeight.toFixed(2);
-
-        // Hide other UI elements
-        document.getElementById('info').style.display = 'none';
-        document.getElementById('controls').style.display = 'none';
-        document.getElementById('status-indicator').style.display = 'none';
-        document.getElementById('score-display').style.display = 'none';
-        document.getElementById('game-stats').style.display = 'none';
-        document.getElementById('movement-indicator').style.display = 'none';
-        document.getElementById('fullscreen-btn').style.display = 'none'; // Hide fullscreen button
-    }
-
-    function restartGame() {
-        // Hide game over screen
-        document.getElementById('game-over-screen').style.display = 'none';
-
-        // Reset game variables
-        playerScore = 0;
-        movementSpeed = 0.1;
-        playerHeight = 0.5;
-        gameEnded = false;
-        gameStartTime = clock.getElapsedTime(); // Reset game timer
-        isAutoMoving = false; // Start with movement off
-
-        // Clear existing objects
-        while (cubes.length > 0) {
-            scene.remove(cubes.pop());
-        }
-        while (spheres.length > 0) {
-            scene.remove(spheres.pop());
-        }
-
-        // Recreate objects
-        createFloatingCubes();
-        createFloatingSpheres();
-
-        // Reset camera position and rotation
-        resetCameraView();
-
-        // Show relevant UI elements
-        document.getElementById('info').style.display = 'block';
-        document.getElementById('controls').style.display = 'flex';
-        document.getElementById('status-indicator').style.display = 'flex';
-        document.getElementById('score-display').style.display = 'flex';
-        document.getElementById('game-stats').style.display = 'flex';
-        document.getElementById('fullscreen-btn').style.display = 'block'; // Show fullscreen button
-
-        updateScoreDisplay();
-        updateGameStatsDisplay();
-        updateMovementIndicator();
-        updateVRStatus(false); // Ensure VR mode is off initially
-        updateGyroStatus(gyroPermissionGranted); // Restore gyroscope status
-    }
-
 
     updateGyroStatus(false);
     updateVRStatus(false);
     updateFullscreenStatus();
 
-    console.log('🎮 VR Application ready!');
+    console.log('🎮 Application VR prête !');
 </script>
 </body>
 </html>
